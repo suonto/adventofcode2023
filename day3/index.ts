@@ -13,6 +13,7 @@ type Number = {
 };
 
 type Symbol = {
+  value: string;
   vertical: number;
   horizontal: number;
 };
@@ -71,6 +72,7 @@ function parseSymbols(line: string, lineNumber: number) {
   for (const c of line) {
     if (!(c in digits) && c !== '.') {
       symbols.push({
+        value: c,
         horizontal: cPos,
         vertical: lineNumber,
       });
@@ -108,7 +110,10 @@ function parseSymbols(line: string, lineNumber: number) {
     lineNumber++;
   }
 
-  for (const symbol of symbols) {
+  let sum = 0;
+  for (const symbol of symbols.filter((symbol) => symbol.value === '*')) {
+    let count = 0;
+    let members: number[] = [];
     for (const number of numbers) {
       if (
         number.left <= symbol.horizontal &&
@@ -116,13 +121,18 @@ function parseSymbols(line: string, lineNumber: number) {
         number.top <= symbol.vertical &&
         number.bottom >= symbol.vertical
       ) {
-        number.active = true;
+        members.push(number.value);
+        count += 1;
       }
     }
+    if (count == 2) {
+      const product = members[0] * members[1];
+      sum += product;
+      console.log(product, sum);
+    }
   }
-  let sum = 0;
-  for (const number of numbers.filter((number) => number.active)) {
-    sum += number.value;
-    console.log(number.value, sum);
-  }
+  // for (const number of numbers.filter((number) => number.active)) {
+  //   sum += number.value;
+  //   console.log(number.value, sum);
+  // }
 })();
