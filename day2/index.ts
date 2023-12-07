@@ -1,14 +1,12 @@
 /* eslint-disable @typescript-eslint/semi */
 import { open } from 'node:fs/promises';
 import path from 'node:path';
-import { z } from 'zod';
 
-const zGame = z.object({
-  blue: z.number().int().lte(14).optional(),
-  green: z.number().int().lte(13).optional(),
-  red: z.number().int().lte(12).optional(),
-});
-
+type Game = {
+  blue?: number;
+  green?: number;
+  red?: number;
+};
 function parseGame(line: string) {
   const [game, info] = line.split(':', 2);
   const [_, stringId] = game.split(' ');
@@ -19,20 +17,22 @@ function parseGame(line: string) {
       const [count, color] = grab.trim().split(' ');
       acc[color] = Number.parseInt(count);
       return acc;
-    }, {}),
+    }, {} as Game),
   );
-
   console.log(sets);
-  const result = z.array(zGame).safeParse(sets);
 
-  if (!result.success) {
-    console.log(result.error);
-    return undefined;
-  }
+  const minimum = sets.reduce((acc, set) => {
+    acc.blue = Math.max(set.blue ?? 0, acc.blue ?? 0);
+    acc.green = Math.max(set.green ?? 0, acc.green ?? 0);
+    acc.red = Math.max(set.red ?? 0, acc.red ?? 0);
+    return acc;
+  }, {} as Game);
+  console.log(minimum);
 
   return {
     id,
-    sets: result.data,
+    power: (minimum.green ?? 0) * (minimum.blue ?? 0) * (minimum.red ?? 0),
+    sets,
   };
 }
 
@@ -44,7 +44,7 @@ function parseGame(line: string) {
     console.log(line);
     const game = parseGame(line);
     if (game) {
-      sum += game.id;
+      sum += game.power;
       console.log(sum, JSON.stringify(game));
     }
   }
