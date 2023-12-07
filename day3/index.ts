@@ -12,8 +12,12 @@ type Number = {
   active: boolean;
 };
 
+type Symbol = {
+  vertical: number;
+  horizontal: number;
+};
+
 function parseLine(line: string, lineNumber: number) {
-  const pattern = /\d+/g;
   const numbers: Number[] = [];
   let number = '';
   let left = -2;
@@ -34,7 +38,7 @@ function parseLine(line: string, lineNumber: number) {
           value: Number.parseInt(number),
           left,
           top,
-          right: cPos + 1,
+          right: cPos,
           bottom: lineNumber + 1,
           active: false,
         });
@@ -47,18 +51,78 @@ function parseLine(line: string, lineNumber: number) {
     }
     cPos++;
   }
+  if (number) {
+    numbers.push({
+      value: Number.parseInt(number),
+      left,
+      top,
+      right: cPos + 1,
+      bottom: lineNumber + 1,
+      active: false,
+    });
+  }
 
   return numbers;
+}
+
+function parseSymbols(line: string, lineNumber: number) {
+  const symbols: Symbol[] = [];
+  let cPos = 0;
+  for (const c of line) {
+    if (!(c in digits) && c !== '.') {
+      symbols.push({
+        horizontal: cPos,
+        vertical: lineNumber,
+      });
+    }
+    cPos++;
+  }
+
+  return symbols;
 }
 
 (async () => {
   const file = await open(path.join(__dirname, '.', 'input.txt'));
 
-  let lineNumber = 0;
+  const lines: string[] = [];
   for await (const line of file.readLines()) {
+    lines.push(line);
+  }
+  let lineNumber = 0;
+  const numbers: Number[] = [];
+  for (const line of lines) {
     console.log(line);
-    const parsed = parseLine(line, lineNumber);
-    console.log(parsed);
+    const newNumbers = parseLine(line, lineNumber);
+    console.log(newNumbers);
+    numbers.push(...newNumbers);
     lineNumber++;
+  }
+
+  lineNumber = 0;
+  const symbols: Symbol[] = [];
+  for (const line of lines) {
+    console.log(line);
+    const newSymbols = parseSymbols(line, lineNumber);
+    symbols.push(...newSymbols);
+    console.log(newSymbols);
+    lineNumber++;
+  }
+
+  for (const symbol of symbols) {
+    for (const number of numbers) {
+      if (
+        number.left <= symbol.horizontal &&
+        number.right >= symbol.horizontal &&
+        number.top <= symbol.vertical &&
+        number.bottom >= symbol.vertical
+      ) {
+        number.active = true;
+      }
+    }
+  }
+  let sum = 0;
+  for (const number of numbers.filter((number) => number.active)) {
+    sum += number.value;
+    console.log(number.value, sum);
   }
 })();
