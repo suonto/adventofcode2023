@@ -2,62 +2,47 @@ import { open } from 'node:fs/promises';
 import path from 'node:path';
 
 function parseLine(line: string) {
-  const [header, times] = line.split(':').map((x) => x.trim());
+  const [header, value] = line.split(':').map((x) => x.trim());
   return {
     header,
-    times: times
-      .split(' ')
-      .filter((x) => x)
-      .map((x) => Number.parseInt(x)),
+    value: Number.parseInt(value.replace(/ /g, '')),
   };
 }
 
 (async () => {
   const file = await open(path.join(__dirname, '.', 'input.txt'));
 
-  let timeLimits: number[] = [];
-  let records: number[] = [];
+  let timeLimit: number = 0;
+  let record: number = 0;
   for await (const line of file.readLines()) {
     console.log(line);
     const parsed = parseLine(line);
     if (parsed.header === 'Time') {
-      timeLimits = parsed.times;
+      timeLimit = parsed.value;
     } else if (parsed.header === 'Distance') {
-      records = parsed.times;
+      record = parsed.value;
     }
   }
-  console.log(timeLimits);
-  console.log(records);
+  console.log(timeLimit);
+  console.log(record);
 
-  let totalWins = 1;
-  for (let i = 0; i < timeLimits.length; i++) {
-    const timeLimit = timeLimits[i];
-    const record = records[i];
-    let speed = 0;
-    let totalRaceWins = 0;
-    for (let pressed = 0; pressed < timeLimit; pressed++) {
-      const runTime = timeLimit - pressed;
-      const distance = speed * runTime;
-      if (speed >= timeLimits[timeLimit]) {
+  let speed = 0;
+  let firstWinner = 0;
+  for (let pressed = 0; pressed < timeLimit; pressed++) {
+    const runTime = timeLimit - pressed;
+    const distance = speed * runTime;
+    // console.log(pressed, 'runs', distance, 'millimeters');
+    if (distance > record) {
+      if (firstWinner === 0) {
+        firstWinner = pressed;
         break;
       }
-      console.log(pressed, 'runs', distance, 'millimeters');
-      if (distance > record) {
-        totalRaceWins++;
-        console.log(pressed, 'wins', totalRaceWins);
-      }
-      speed++;
+      // console.log(pressed, 'wins', totalWins);
     }
-    totalWins *= totalRaceWins;
-    console.log(
-      'race',
-      i,
-      'has',
-      totalRaceWins,
-      'wins',
-      'total wins',
-      totalWins,
-    );
+    speed++;
   }
-  console.log(totalWins);
+  console.log('first winner', firstWinner);
+  const lastWinner = timeLimit - firstWinner;
+  console.log('last winner', lastWinner);
+  console.log('race has total wins', lastWinner + 1 - firstWinner);
 })();
