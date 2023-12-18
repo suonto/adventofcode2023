@@ -19,14 +19,17 @@ class History {
 
   predict(): void {
     for (let i = this.numbers.length - 1; i >= 0; i--) {
-      const diff =
-        i < this.numbers.length - 2 ? this.numbers[i + 1].at(-1)! : 0;
-      this.numbers[i].push(this.numbers[i].at(-1)! + diff);
+      const diff = i < this.numbers.length - 2 ? this.numbers[i + 1][0] : 0;
+      this.numbers[i].splice(0, 0, this.numbers[i][0] - diff);
     }
   }
 
   getNext(): number {
     return this.numbers[0].at(-1)!;
+  }
+
+  getPrev(): number {
+    return this.numbers[0][0];
   }
 
   toString(): string {
@@ -74,7 +77,7 @@ class History {
     history.predict();
     console.log('prediction');
     console.log(history.toString());
-    sum += history.getNext();
+    sum += history.getPrev();
   }
   console.log(sum);
 })();
