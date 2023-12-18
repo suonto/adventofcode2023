@@ -2,6 +2,7 @@ import { open } from 'node:fs/promises';
 import path from 'node:path';
 
 const cards = [
+  'J',
   '2',
   '3',
   '4',
@@ -11,7 +12,6 @@ const cards = [
   '8',
   '9',
   'T',
-  'J',
   'Q',
   'K',
   'A',
@@ -41,15 +41,24 @@ class Hand {
   }
 
   private getHandType(): HandType {
-    const counts = this.cards.reduce(
+    const { counts, jokers } = this.cards.reduce(
       (acc, card) => {
-        acc[card] = (acc[card] ?? 0) + 1;
+        if (card === 'J') {
+          acc.jokers++;
+          return acc;
+        }
+        acc.counts[card] = (acc.counts[card] ?? 0) + 1;
         return acc;
       },
-      {} as Record<Card, number>,
+      { jokers: 0, counts: {} } as {
+        jokers: number;
+        counts: Record<Card, number>;
+      },
     );
-    const countsArray = Object.values(counts);
-    const maxCount = Math.max(...countsArray);
+    const countsArray = Object.values(counts).length
+      ? Object.values(counts)
+      : [0];
+    const maxCount = Math.max(...countsArray) + jokers;
     const minCount = Math.min(...countsArray);
     if (maxCount === 5) {
       return 'Five of a kind';
@@ -59,7 +68,7 @@ class Hand {
       return 'Full house';
     } else if (maxCount === 3) {
       return 'Three of a kind';
-    } else if (maxCount === 2 && minCount === 2) {
+    } else if (maxCount === 2 && countsArray.length === 3) {
       return 'Two pair';
     } else if (maxCount === 2) {
       return 'One pair';
@@ -97,6 +106,7 @@ class Hand {
 (async () => {
   const file = await open(path.join(__dirname, '.', 'input.txt'));
 
+  // console.log(new Hand(['J', '8', '4', '4', '8']).toString());
   const bets: { hand: Hand; bid: number }[] = [];
   for await (const line of file.readLines()) {
     const [cardsInput, bid] = line.split(' ', 2);
@@ -114,7 +124,7 @@ class Hand {
       const rank = i + 1;
       const winnings = rank * bid;
       acc += winnings;
-      console.log(hand.toString(), rank, winnings, acc);
+      console.log(hand.toString(), rank, bid, winnings, acc);
       return acc;
     }, 0);
 })();
