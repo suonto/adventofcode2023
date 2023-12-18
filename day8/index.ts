@@ -30,18 +30,32 @@ function parseLine(line: string): { id: string } & Point {
   console.log(points);
   console.log(instructions);
 
-  let current = 'AAA';
-  let i = 0;
-  while (current !== 'ZZZ') {
-    for (const instruction of instructions) {
-      const previous = current;
-      if (instruction === 'L') {
-        current = points[current].left;
-      } else {
-        current = points[current].right;
+  const starts: string[] = Object.keys(points).filter((k) => k.endsWith('A'));
+
+  const cadences: number[] = [];
+  for (const start of starts) {
+    let i = 0;
+    let current = start;
+    while (!current.endsWith('Z')) {
+      for (const instruction of instructions) {
+        const previous = current;
+        if (instruction === 'L') {
+          current = points[current].left;
+        } else {
+          current = points[current].right;
+        }
+        i++;
+        // console.log(previous, instruction, current, i);
       }
-      i++;
-      console.log(previous, instruction, current, i);
     }
+    cadences.push(i);
+    console.log(start, '->', current, i);
+
+    // couple of utilities from
+    // https://stackoverflow.com/questions/47047682/least-common-multiple-of-an-array-values-using-euclidean-algorithm
+    const gcd = (a, b) => (a ? gcd(b % a, a) : b);
+    const lcm = (a, b) => (a * b) / gcd(a, b);
+
+    console.log(cadences.reduce(lcm));
   }
 })();
