@@ -19,15 +19,38 @@ class Galaxy {
 
 class Space {
   galaxies: Galaxy[] = [];
+  input: string[][] = [];
+  expansionRatio: number = 1;
 
-  constructor(input: string[][]) {
-    for (let y = 0; y < input.length; y++) {
-      for (let x = 0; x < input[y].length; x++) {
-        if (input[y][x] === '#') {
-          this.galaxies.push(new Galaxy(this.galaxies.length + 1, x, y));
-        }
+  constructor(input: string[][], expansionRatio: number) {
+    this.input = input;
+    this.expansionRatio = expansionRatio;
+  }
+
+  xOffset(atX: number) {
+    let offset = 0;
+    for (let x = 0; x < atX; x++) {
+      const column = this.input.map((row) => row[x]);
+      if (!column.includes('#')) {
+        offset += this.expansionRatio - 1;
       }
     }
+    return offset;
+  }
+
+  yOffset(atY: number) {
+    let offset = 0;
+    for (let y = 0; y < atY; y++) {
+      const row = this.input[y];
+      if (!row.includes('#')) {
+        offset += this.expansionRatio - 1;
+      }
+    }
+    return offset;
+  }
+
+  add(x: number, y: number) {
+    this.galaxies.push(new Galaxy(this.galaxies.length + 1, x, y));
   }
 
   distances() {
@@ -53,41 +76,35 @@ class Space {
   }
 }
 
-async function parseInput() {
+async function parseInput(expansionRatio: number) {
   const file = await open(path.join(__dirname, '.', 'input.txt'));
 
   const input: string[][] = [];
   for await (const line of file.readLines()) {
-    const row = line.split('');
-    input.push(row);
-    if (!row.includes('#')) {
-      input.push([...row]);
+    input.push(line.split(''));
+  }
+  const space = new Space(input, expansionRatio);
+
+  const xOffsets: Record<number, number> = {};
+  for (let y = 0; y < input.length; y++) {
+    const yOffset = space.yOffset(y);
+    for (let x = 0; x < input[y].length; x++) {
+      const xOffset = xOffsets[x] ?? space.xOffset(x);
+      if (input[y][x] === '#') space.add(x + xOffset, y + yOffset);
     }
   }
 
-  for (let x = 0; x < input[0].length; x++) {
-    const column = input.map((row) => row[x]);
-    if (!column.includes('#')) {
-      input.forEach((row) => row.splice(x, 0, '.'));
-      x++;
-    }
-  }
-  console.log('dimensions', input.length, input[0].length);
-
-  input.map((row) => console.log(row.join('')));
-  return new Space(input);
+  return space;
 }
 
 (async () => {
-  const space = await parseInput();
+  const space = await parseInput(1000000);
   const distances = space.distances();
-  // ['12', '13'].forEach((key) => console.log(key, distances[key]));
   console.log(space.galaxies.length);
   console.log(
     'pairs mathematically',
     (space.galaxies.length * (space.galaxies.length - 1)) / 2,
   );
   console.log(Object.keys(distances).length);
-  // console.log(distances);
   console.log(Object.values(distances).reduce((acc, curr) => acc + curr, 0));
 })();
