@@ -1,0 +1,28 @@
+{
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:18",
+  "features": {
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "workbench.colorTheme": "Default Dark Modern",
+        "[typescript]": {
+          "editor.formatOnSave": true,
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "zsh": {
+            "path": "zsh",
+            "args": [
+
+            ]
+          }
+        }
+      }
+    } 
+  }  
+}
