@@ -40,12 +40,14 @@ function flip(grid: string[][]): string[][] {
 function hasMirrorAt(i: number, grid: string[][]): boolean {
   let before = i - 1;
   let after = i;
+  let budget = 1;
   while (before >= 0 && after < grid.length) {
-    if (diffScore(grid[before--], grid[after++])) {
+    budget -= diffScore(grid[before--], grid[after++]);
+    if (budget < 0) {
       return false;
     }
   }
-  return true;
+  return budget === 0;
 }
 
 function mirrorAt(grid: string[][]): number | undefined {
