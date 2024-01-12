@@ -6,34 +6,41 @@ function parseLine(line: string) {
   return line.split('') as Piece[];
 }
 
-function flip(grid: Piece[][]): Piece[][] {
-  const result: Piece[][] = [];
-  for (let i = 0; i < grid[0].length; i++) {
-    const row: Piece[] = [];
-    for (let j = 0; j < grid.length; j++) {
-      row.push(grid[j][i]);
-    }
-    result.push(row);
-  }
-  return result;
+const directions = ['north', 'west', 'south', 'east'] as const;
+type Direction = (typeof directions)[number];
+
+function next(direction: Direction): Direction {
+  return directions[(directions.indexOf(direction) + 1) % directions.length];
 }
 
-function tilt(grid: Piece[][]): number {
-  let sum = 0;
-  for (const [y, row] of grid.entries()) {
-    for (const [x, piece] of row.entries()) {
+function tiltAndRotate(grid: Piece[][], direction: Direction) {
+  const newGrid: Piece[][] = [];
+  for (let i = 0; i < grid[0].length; i++) {
+    newGrid.push(Array(grid.length).fill('.'));
+  }
+  const result = {
+    newGrid,
+    weight: 0,
+    direction: next(direction),
+  };
+  for (let x = 0; x < grid[0].length; x++) {
+    let last = 0;
+    for (let y = 0; y < grid.length; y++) {
+      const piece = grid[y][x];
+      if (piece === '#') {
+        last = y + 1;
+        result.newGrid[x][grid.length - (y + 1)] = piece;
+      }
       if (piece === 'O') {
-        const last = Math.max(
-          grid[y].slice(0, x).lastIndexOf('O'),
-          grid[y].slice(0, x).lastIndexOf('#'),
-        );
-        grid[y][x] = '.';
-        grid[y][last + 1] = 'O';
-        sum += row.length - (last + 1);
+        result.weight += grid.length - last;
+
+        result.newGrid[x][grid.length - (y + 1)] = '.';
+        result.newGrid[x][grid.length - (last + 1)] = 'O';
+        last++;
       }
     }
   }
-  return sum;
+  return result;
 }
 
 (async () => {
@@ -44,29 +51,17 @@ function tilt(grid: Piece[][]): number {
     grid.push(parseLine(line));
   }
 
+  console.log('original');
   for (const row of grid) {
     console.log(row.join(''));
   }
-  console.log();
-  console.log('flipped');
 
-  const flipped = flip(grid);
-  for (const row of flipped) {
+  console.log();
+
+  const { newGrid, weight, direction } = tiltAndRotate(grid, 'north');
+  console.log('tiltedAndRotated', direction, 'facing up', weight);
+  for (const row of newGrid) {
     console.log(row.join(''));
   }
   console.log();
-  const sum = tilt(flipped);
-  console.log('tilted');
-  for (const row of flipped) {
-    console.log(row.join(''));
-  }
-
-  const aligned = flip(flipped);
-  console.log();
-  console.log('aligned');
-  for (const row of aligned) {
-    console.log(row.join(''));
-  }
-
-  console.log(sum);
 })();
