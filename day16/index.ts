@@ -34,6 +34,19 @@ type Tile = {
   arrivals: Direction[];
 };
 
+function copy(grid: Tile[][]): Tile[][] {
+  const newGrid: Tile[][] = [];
+  for (const row of grid) {
+    newGrid.push(
+      row.map((tile) => ({
+        content: tile.content,
+        arrivals: tile.arrivals.slice(),
+      })),
+    );
+  }
+  return newGrid;
+}
+
 type Point = { x: number; y: number };
 
 type Beam = Point & {
@@ -126,23 +139,9 @@ function parseLine(line: string) {
   return line.split('') as Content[];
 }
 
-(async () => {
-  const file = await open(path.join(__dirname, '.', 'input.txt'));
-
-  const grid: Tile[][] = [];
-  for await (const line of file.readLines()) {
-    console.log(line);
-    const contents = parseLine(line);
-    grid.push(contents.map((content) => ({ content, arrivals: [] })));
-  }
-  console.log();
-
+function solve(initial: Beam, grid: Tile[][]) {
   const beams: Beam[] = [];
-  let beam: Beam | undefined = {
-    x: -1,
-    y: 0,
-    direction: 'right',
-  };
+  let beam: Beam | undefined = { ...initial };
 
   while (beam) {
     beams.push(...advance(beam, grid));
@@ -158,5 +157,69 @@ function parseLine(line: string) {
     }, 0);
     console.log(row.map((r) => (r.arrivals.length ? '#' : '.')).join(''));
   }
-  console.log(energized);
+
+  console.log(initial, energized);
+
+  return energized;
+}
+
+(async () => {
+  const file = await open(path.join(__dirname, '.', 'input.txt'));
+
+  const grid: Tile[][] = [];
+  for await (const line of file.readLines()) {
+    console.log(line);
+    const contents = parseLine(line);
+    grid.push(contents.map((content) => ({ content, arrivals: [] })));
+  }
+  console.log();
+
+  let max = 0;
+  for (let y = 0; y < grid.length; y++) {
+    console.log('solving y', y);
+    max = Math.max(
+      max,
+      solve(
+        {
+          x: -1,
+          y,
+          direction: 'right',
+        },
+        copy(grid),
+      ),
+      solve(
+        {
+          x: grid[0].length,
+          y,
+          direction: 'left',
+        },
+        copy(grid),
+      ),
+    );
+  }
+
+  for (let x = 0; x < grid[0].length; x++) {
+    console.log('solving x', x);
+    max = Math.max(
+      max,
+      solve(
+        {
+          x,
+          y: -1,
+          direction: 'down',
+        },
+        copy(grid),
+      ),
+      solve(
+        {
+          x,
+          y: grid.length,
+          direction: 'up',
+        },
+        copy(grid),
+      ),
+    );
+  }
+
+  console.log(max);
 })();
