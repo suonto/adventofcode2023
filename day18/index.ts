@@ -1,79 +1,47 @@
 import { open } from 'node:fs/promises';
 import path from 'node:path';
-import { type Direction, directions } from '../util/directions';
+import { type Direction, prev, next, directions } from '../util/directions';
 import { Point } from '../util/point';
-import debug from 'debug';
+import { debug } from 'debug';
 
-type Instruction = {
-  color: string;
+export type Instruction = {
+  start: Point;
+  end: Point;
   direction: Direction;
   distance: number;
+  turn?: 'left' | 'right';
 };
 
-const dirs: Record<string, Direction> = {
-  U: 'up',
-  R: 'right',
-  D: 'down',
-  L: 'left',
+type Edge = Point & {
+  length: number;
 };
 
-type Block = {
-  content: '.' | '#' | 'O' | 'I';
-  paint?: {
-    side: Direction;
-    color: string;
-  };
-};
-
-function parseLine(line: string) {
-  const [direction, distance, rgb] = line.split(' ');
-  const instruction: Instruction = {
-    direction: dirs[direction],
-    distance: Number.parseInt(distance),
-    color: rgb.slice(1, -1),
-  };
-  return instruction;
-}
-
-function extend(params: { grid: Block[][]; point: Point }): Point {
-  const dExtend = debug('extend');
-  const { grid, point } = params;
-  dExtend('before', point);
-  // print(grid);
-
-  if (point.y === grid.length) {
-    const newRow: Block[] = [];
-    for (let i = 0; i < grid[0].length; i++) {
-      newRow.push({ content: '.' });
-    }
-    grid.push(newRow);
+function parseLine(line: string, part2: boolean) {
+  if (part2) {
+    const [, , hex] = line.split(' ');
+    const distance = Number.parseInt(hex.slice(2, 7), 16);
+    const direction = next(directions[Number.parseInt(hex[7])]);
+    const instruction: Omit<Instruction, 'start' | 'end' | 'turn'> = {
+      direction,
+      distance,
+    };
+    return instruction;
+  } else {
+    const [dir, distance] = line.split(' ');
+    const direction = (
+      {
+        U: directions[0],
+        R: directions[1],
+        D: directions[2],
+        L: directions[3],
+      } as const
+    )[dir]!;
+    const instruction: Omit<Instruction, 'start' | 'end' | 'turn'> = {
+      direction,
+      distance: Number.parseInt(distance),
+    };
+    return instruction;
   }
-
-  if (point.y === -1) {
-    const newRow: Block[] = [];
-    for (let i = 0; i < grid[0].length; i++) {
-      newRow.push({ content: '.' });
-    }
-    grid.unshift(newRow);
-    point.y = 0;
-  }
-
-  if (point.x === grid[0].length) {
-    for (const row of grid) {
-      row.push({ content: '.' });
-    }
-  }
-
-  if (point.x === -1) {
-    for (const row of grid) {
-      row.unshift({ content: '.' });
-    }
-    point.x = 0;
-  }
-
-  dExtend('after', point);
-  // print(grid);
-  return point;
 }
 
 function diffs(direction: Direction): Point {
@@ -90,100 +58,143 @@ function diffs(direction: Direction): Point {
   return result;
 }
 
-function infect(params: { grid: Block[][]; point: Point }): Point[] {
-  const dInfect = debug('infect');
-  const { grid, point } = params;
-  dInfect('infect', point);
-  grid[point.y][point.x].content = 'O';
-
-  return [
-    { x: point.x + 1, y: point.y },
-    { x: point.x - 1, y: point.y },
-    { x: point.x, y: point.y + 1 },
-    { x: point.x, y: point.y - 1 },
-  ].filter(
-    (neighbor) =>
-      neighbor.x >= 0 &&
-      neighbor.y >= 0 &&
-      neighbor.x < grid[0].length &&
-      neighbor.y < grid.length &&
-      grid[neighbor.y][neighbor.x].content === '.',
-  );
-}
-
-function print(grid: Block[][]) {
-  for (const row of grid) {
-    console.log(row.map((r) => r.content).join(''));
-  }
-  console.log();
-}
-
-function digTrench(params: {
-  start: Point;
-  grid: Block[][];
-  instruction: Instruction;
-}): Point {
-  const { start, grid, instruction } = params;
-  let point = start;
+// Not a boundary, end indexes are included
+function getEnd(instruction: Omit<Instruction, 'end'>): Point {
   const { x: xDiff, y: yDiff } = diffs(instruction.direction);
-
-  for (let d = 0; d < instruction.distance; d++) {
-    point = { x: point.x + xDiff, y: point.y + yDiff };
-    point = extend({ grid, point });
-    grid[point.y][point.x].content = '#';
-  }
-
-  return point;
+  return {
+    x: instruction.start.x + xDiff * (instruction.distance - 1),
+    y: instruction.start.y + yDiff * (instruction.distance - 1),
+  };
 }
 
-(async () => {
+const main = async () => {
+  const dMain = debug('main');
   const file = await open(path.join(__dirname, '.', 'input.txt'));
 
+  const instructions: Instruction[] = [];
   let start = { x: 0, y: 0 };
-  const grid: Block[][] = [[{ content: '#' }]];
   for await (const line of file.readLines()) {
-    console.log(line);
-    const instruction = parseLine(line);
-    start = digTrench({
+    const { direction, distance } = { ...parseLine(line, true) };
+    const { x: xDiff, y: yDiff } = diffs(direction);
+    start = {
+      x: start.x + xDiff,
+      y: start.y + yDiff,
+    };
+    const end = getEnd({
       start,
-      grid,
-      instruction,
+      distance,
+      direction,
     });
-  }
-  print(grid);
 
-  extend({ grid, point: { x: -1, y: -1 } });
-  extend({ grid, point: { x: grid[0].length, y: grid.length } });
-  print(grid);
+    const instruction: Instruction = {
+      direction,
+      distance,
+      start,
+      end,
+    };
 
-  for (const [y, row] of grid.entries()) {
-    const trenchIndex = row.findIndex((b) => b.content === '#');
-    if (trenchIndex > 0) {
-      const points = [{ x: trenchIndex - 1, y }];
-      while (points.length) {
-        const point = points.shift()!;
-        const newPoints = infect({
-          grid,
-          point,
-        });
-        points.unshift(...newPoints);
+    start = end;
+
+    if (instructions.length) {
+      if (instructions.at(-1)?.direction === prev(instruction.direction)) {
+        instruction.turn = 'right';
+      } else {
+        instruction.turn = 'left';
       }
-      break;
+    }
+    instructions.push(instruction);
+  }
+
+  if (instructions.at(-1)?.direction === prev(instructions[0].direction)) {
+    instructions[0].turn = 'right';
+  } else {
+    instructions[0].turn = 'left';
+  }
+
+  const edges: Edge[] = [];
+  for (const [i, instruction] of instructions.entries()) {
+    const nextInstruction = instructions.at(i + 1) ?? instructions[0];
+    dMain(
+      'Instruction',
+      instruction.direction,
+      instruction.distance,
+      instruction.turn,
+      instruction.start,
+    );
+    if (instruction.direction === 'up') {
+      let length = instruction.distance - 1;
+      let y = instruction.start.y + 1 - length;
+      if (nextInstruction?.turn === 'right') {
+        length++;
+        y--;
+      }
+      if (instruction.turn === 'right') {
+        length++;
+      }
+      const edge = {
+        x: instruction.start.x,
+        y,
+        length,
+      };
+      dMain('up edge', instruction.turn, nextInstruction?.turn, edge);
+      edges.push(edge);
+    }
+
+    if (instruction.direction === 'down') {
+      let length = instruction.distance - 1;
+      let y = instruction.start.y;
+      if (instruction.turn === 'right') {
+        length++;
+        y--;
+      }
+      if (nextInstruction?.turn === 'right') {
+        length++;
+      }
+      const edge = {
+        x: instruction.start.x + 1,
+        y,
+        length,
+      };
+      dMain('down edge', instruction.turn, nextInstruction?.turn, edge);
+      edges.push(edge);
     }
   }
 
   let sum = 0;
-  for (const row of grid) {
-    for (const block of row) {
-      if (block.content === '.') {
-        block.content = 'I';
-      }
-      if (['I', '#'].includes(block.content)) {
-        sum++;
-      }
-    }
+
+  let sortedEdges = edges.sort((a, b) => a.y - b.y);
+  dMain(sortedEdges);
+
+  while (sortedEdges.at(0)) {
+    const group = sortedEdges
+      .filter((e) => e.y === sortedEdges[0].y)
+      .sort((a, b) => a.x - b.x);
+    dMain('group', group);
+
+    const left = group[0];
+    const right = group[1];
+    const nextBetween = Math.min(
+      ...sortedEdges
+        .filter((e) => e.x > left.x && e.x < right.x)
+        .map((e) => e.y),
+    );
+    const length = Math.min(left.length, right.length, nextBetween - left.y);
+    const xStart = Math.min(...edges.map((e) => e.x));
+    const xBoundary = Math.max(...edges.map((e) => e.x));
+
+    left.length -= length;
+    left.y += length;
+    right.length -= length;
+    right.y += length;
+    const result = length * (right.x - left.x);
+    sum += result;
+    dMain('result    ', [left, right], result);
+    sortedEdges = sortedEdges.filter((e) => e.length).sort((a, b) => a.y - b.y);
   }
 
-  print(grid);
-  console.log(sum);
-})();
+  dMain('TOTAL', sum);
+};
+
+if (require.main === module) {
+  main();
+}
