@@ -22,16 +22,30 @@ type Part = {
   s: number;
 };
 
+type Limit = {
+  min: number;
+  max: number;
+};
+
+type Limits = {
+  a: Limit;
+  m: Limit;
+  s: Limit;
+  x: Limit;
+};
+
 type Condition = {
   partType: PartType;
   comparison: Comparison;
   value: number;
 };
 
+type NamedCondition = { name: string } & Condition;
+
 type Effect = Outcome | string;
 
 type Workflow = {
-  condition?: Condition;
+  condition?: NamedCondition;
   effect: Outcome | string;
 }[];
 
@@ -55,6 +69,7 @@ function parseWorkflow(line: string): { workflow: Workflow; name: string } {
         dParseWorkflow(partType, comparison, value, effect);
         return {
           condition: {
+            name,
             partType: partType as PartType,
             comparison,
             value: Number.parseInt(value),
@@ -118,54 +133,116 @@ async function parseInput() {
   return { workflows, parts };
 }
 
-function satisfies(part: Part, condition: Condition): boolean {
-  const { partType, comparison, value } = condition;
-  const dSatisfies = debug('satisfies');
-  const compare =
-    comparison === '<'
-      ? (a: number, b: number) => a < b
-      : (a: number, b: number) => a > b;
-  const result = compare(part[partType], value);
-  dSatisfies(part[partType], comparison, value, result);
+function resolveAcceptWorkflows(params: {
+  conditions: NamedCondition[];
+  workflowName: string;
+  workflows: Map<string, Workflow>;
+}): NamedCondition[][] {
+  const dResolve = debug('resolve');
+  const { conditions, workflowName, workflows } = params;
+  const newConditionSets: NamedCondition[][] = [];
+  const workflow: Workflow = workflows.get(workflowName)!;
+  for (const instruction of workflow) {
+    if (instruction.effect === 'R') {
+      if (!instruction.condition) {
+        break;
+      }
+      conditions.push(invert(instruction.condition));
+    } else if (instruction.effect === 'A') {
+      if (!instruction.condition) {
+        newConditionSets.push([...conditions]);
+        break;
+      }
+      newConditionSets.push([...conditions, { ...instruction.condition }]);
+      // dResolve('A', newConditionSets);
+      conditions.push(invert(instruction.condition));
+    } else {
+      newConditionSets.push(
+        ...resolveAcceptWorkflows({
+          conditions: instruction.condition
+            ? [...conditions, { ...instruction.condition }]
+            : [...conditions],
+          workflowName: instruction.effect,
+          workflows,
+        }),
+      );
+      if (instruction.condition) {
+        conditions.push(invert(instruction.condition));
+      }
+    }
+  }
+
+  for (const conditionSet of newConditionSets) {
+    dResolve(
+      workflowName,
+      conditionSet.map(
+        (c) =>
+          `${c.name.padEnd(3, ' ')}:${c.partType}${c.comparison}${c.value
+            .toString()
+            .padStart(3, ' ')}`,
+      ),
+    );
+  }
+
+  return newConditionSets;
+}
+
+function invert(condition: NamedCondition): NamedCondition {
+  const result = { ...condition };
+  if (result.comparison === '<') {
+    // !x<5 -> x>4
+    result.comparison = '>';
+    result.value--;
+  } else {
+    // !x>5 -> x<6
+    result.comparison = '<';
+    result.value++;
+  }
+
   return result;
 }
 
-function resolve(params: { part: Part; workflow: Workflow }): Effect {
-  const dResolve = debug('resolve');
-  const { part, workflow } = params;
-  for (const instruction of workflow) {
-    if (!instruction.condition || satisfies(part, instruction.condition)) {
-      dResolve('->', instruction.effect);
-      return instruction.effect;
-    }
+function applyLimits(condition: NamedCondition, limits: Limits): void {
+  if (condition.comparison === '<') {
+    limits[condition.partType].max = Math.min(
+      limits[condition.partType].max,
+      condition.value,
+    );
+  } else {
+    limits[condition.partType].min = Math.max(
+      limits[condition.partType].min,
+      condition.value,
+    );
   }
-  throw new Error('No condition satisfied, not even final.');
 }
 
-function processPart(params: {
-  part: Part;
-  workflows: Map<string, Workflow>;
-}): Outcome {
-  const { part, workflows } = params;
-  let workflow = workflows.get('in')!;
-
-  let effect: Effect | undefined = undefined;
-  while (effect !== 'A' && effect !== 'R') {
-    effect = resolve({ part, workflow });
-    workflow = workflows.get(effect)!;
-  }
-  return effect;
-}
-
-function main(parts: Part[], workflows: Map<string, Workflow>) {
+function main(_parts: Part[], workflows: Map<string, Workflow>) {
   const dMain = debug('main');
   let sum = 0;
-  for (const [i, part] of parts.entries()) {
-    dMain('Processing', i, part);
-    const outcome: Outcome = processPart({ part, workflows });
-    const result = outcome === 'A' ? part.a + part.m + part.s + part.x : 0;
+
+  const rejectConditionSets = resolveAcceptWorkflows({
+    conditions: [],
+    workflowName: 'in',
+    workflows,
+  });
+
+  for (const conditionSet of rejectConditionSets) {
+    const limits: Limits = {
+      a: { min: 0, max: 4001 },
+      m: { min: 0, max: 4001 },
+      s: { min: 0, max: 4001 },
+      x: { min: 0, max: 4001 },
+    };
+    for (const condition of conditionSet) {
+      applyLimits(condition, limits);
+    }
+    dMain(limits);
+    const multipliers = Object.keys(limits).map(
+      (k) => limits[k].max - (limits[k].min + 1),
+    );
+    const result = multipliers.reduce((acc, curr) => acc * curr, 1);
     sum += result;
-    dMain(outcome, result, sum);
+    dMain('result', result, 'sum', sum);
   }
 }
 
