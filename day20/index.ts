@@ -1,10 +1,19 @@
 import debug from 'debug';
-import { createNetwork } from './network';
+import { Network } from './network';
 import { read } from './read';
 
-(async () => {
+async function main() {
   const dMain = debug('main');
-  const network = createNetwork(await read('./input.txt'));
-  network.pressButton();
-  dMain(network.logs[0].join('\n'));
-})();
+  const network = new Network({ logging: true });
+  const lines = await read('./input.txt');
+  lines.map((l) => network.register(l));
+
+  for (let i = 0; i < 1000; i++) {
+    network.pressButton();
+  }
+  dMain(network.count());
+}
+
+if (require.main === module) {
+  main();
+}

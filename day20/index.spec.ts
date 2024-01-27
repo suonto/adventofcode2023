@@ -1,6 +1,7 @@
 import { describe, expect, test } from '@jest/globals';
 import debug from 'debug';
-import { createNetwork } from './network';
+import { Conjunction, FlipFlop } from './devices';
+import { Network } from './network';
 
 const dTest = debug('test');
 
@@ -23,9 +24,48 @@ b -low-> c
 c -low-> inv
 inv -high-> a`;
 
+const example2Input = `broadcaster -> a
+%a -> inv, con
+&inv -> b
+%b -> con
+&con -> output`;
+
+const example2Out1st = `button -low-> broadcaster
+broadcaster -low-> a
+a -high-> inv
+a -high-> con
+inv -low-> b
+con -high-> output
+b -high-> con
+con -low-> output`;
+
+const example2Out2nd = `button -low-> broadcaster
+broadcaster -low-> a
+a -low-> inv
+a -low-> con
+inv -high-> b
+con -high-> output`;
+
+const example2Out3rd = `button -low-> broadcaster
+broadcaster -low-> a
+a -high-> inv
+a -high-> con
+inv -low-> b
+con -low-> output
+b -low-> con
+con -high-> output`;
+
+const example2Out4th = `button -low-> broadcaster
+broadcaster -low-> a
+a -low-> inv
+a -low-> con
+inv -high-> b
+con -high-> output`;
+
 describe('Network', () => {
   test('Example 1', () => {
-    const network = createNetwork(example1Input.split('\n'));
+    const network = new Network({ logging: true });
+    example1Input.split('\n').forEach((l) => network.register(l));
     dTest(network.devices);
 
     // 1st press
@@ -35,5 +75,61 @@ describe('Network', () => {
     // 2nd press
     network.pressButton();
     expect(network.logs[1].join('\n')).toBe(example1Output);
+  });
+
+  test('Example 1 count', () => {
+    const network = new Network();
+    example1Input.split('\n').forEach((l) => network.register(l));
+    dTest(network.devices);
+
+    for (let i = 0; i < 1000; i++) {
+      network.pressButton();
+    }
+    expect(network.count()).toBe(32000000);
+  });
+
+  test('Example 2', () => {
+    const network = new Network({ logging: true });
+    example2Input.split('\n').forEach((l) => network.register(l));
+    dTest(network.devices);
+
+    dTest('1st');
+    network.pressButton();
+    expect(network.logs[0].join('\n')).toBe(example2Out1st);
+    expect((network.getDevice('a') as FlipFlop).on).toBeTruthy();
+    expect((network.getDevice('b') as FlipFlop).on).toBeTruthy();
+    expect(
+      Array.from(
+        (network.getDevice('con') as Conjunction).inputs.values(),
+      ).every((pulse) => pulse),
+    ).toBeTruthy();
+
+    dTest('2nd');
+    network.pressButton();
+    expect(network.logs[1].join('\n')).toBe(example2Out2nd);
+    expect((network.getDevice('a') as FlipFlop).on).toBeFalsy();
+    expect((network.getDevice('b') as FlipFlop).on).toBeTruthy();
+    const con = network.getDevice('con')! as Conjunction;
+    expect(con.inputs.get('a')).toBeFalsy();
+    expect(con.inputs.get('b')).toBeTruthy();
+
+    dTest('3rd');
+    network.pressButton();
+    expect(network.logs[2].join('\n')).toBe(example2Out3rd);
+
+    dTest('4th');
+    network.pressButton();
+    expect(network.logs[3].join('\n')).toBe(example2Out4th);
+  });
+
+  test('Example 2 count', () => {
+    const network = new Network();
+    example2Input.split('\n').forEach((l) => network.register(l));
+    dTest(network.devices);
+
+    for (let i = 0; i < 1000; i++) {
+      network.pressButton();
+    }
+    expect(network.count()).toBe(11687500);
   });
 });
