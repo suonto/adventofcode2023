@@ -7,8 +7,12 @@ const dNetwork = debug('network');
 export class Network {
   private messages: Message[] = [];
   private logging: boolean = false;
+  private pressCount = 0;
   private lowCount = 0;
   private highCount = 0;
+  private cycle: undefined | number = undefined;
+  private cycleLowCount = 0;
+  private cycleHighCount = 0;
 
   constructor(params?: { logging?: boolean }) {
     this.logging = params?.logging ?? false;
@@ -41,7 +45,33 @@ export class Network {
     }
   }
 
+  pressMany(times: number): void {
+    while (!this.cycle) {
+      if (this.pressCount === times - 1) {
+        return;
+      }
+      this.pressButton();
+    }
+    dNetwork('Cycle length', this.cycle);
+    const reminder = (times - this.pressCount) % this.cycle;
+    const cycles = (times - this.pressCount - reminder) / this.cycle;
+    dNetwork(
+      cycles,
+      'cycles of',
+      this.cycle,
+      'then pressing',
+      reminder,
+      'times.',
+    );
+    this.highCount += cycles * this.cycleHighCount;
+    this.lowCount += cycles * this.cycleLowCount;
+    for (let i = 0; i < reminder; i++) {
+      this.pressButton();
+    }
+  }
+
   pressButton(): void {
+    this.pressCount++;
     this.messages.push(
       new Message({
         to: 'broadcaster',
@@ -52,6 +82,10 @@ export class Network {
 
     if (this.logging) this.logs.push([]);
     this.run();
+
+    if (this.cycle === undefined && this.atDefaultState()) {
+      this.cycle = this.pressCount;
+    }
   }
 
   private run() {
@@ -64,16 +98,25 @@ export class Network {
     return this.lowCount * this.highCount;
   }
 
+  atDefaultState(): boolean {
+    return Array.from(this.devices.values()).every((d) => d.atDefaultState());
+  }
+
   process(): boolean {
     const message = this.messages.shift();
     if (!message) {
       return false;
     }
+
+    // Keep count how many pulses happen in a cycle
     if (message.pulse) {
-      this.lowCount++;
-    } else {
+      if (!this.cycle) this.cycleHighCount++;
       this.highCount++;
+    } else {
+      if (!this.cycle) this.cycleLowCount++;
+      this.lowCount++;
     }
+
     dNetwork('process', message.toString());
     if (this.logging) this.logs[this.logs.length - 1].push(message.toString());
     this.messages.push(...this.getDevice(message.to).process(message));

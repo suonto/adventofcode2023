@@ -8,9 +8,7 @@ async function main() {
   const lines = await read('./input.txt');
   lines.map((l) => network.register(l));
 
-  for (let i = 0; i < 1000; i++) {
-    network.pressButton();
-  }
+  network.pressMany(1000);
   dMain(network.count());
 }
 

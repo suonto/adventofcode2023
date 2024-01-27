@@ -3,6 +3,7 @@ import { Message } from './message';
 
 export interface Device {
   process: (message: Message) => Message[];
+  atDefaultState: () => boolean;
 }
 
 export class Conjunction implements Device {
@@ -17,6 +18,9 @@ export class Conjunction implements Device {
         pulse: false,
       });
     }
+  }
+  atDefaultState(): boolean {
+    return Array.from(this.inputs.values()).every((pulse) => !pulse);
   }
 
   process(message: Message): Message[] {
@@ -48,6 +52,10 @@ export class Broadcaster implements Device {
     this.peers = peers;
   }
 
+  atDefaultState(): boolean {
+    return true;
+  }
+
   process(message: Message): Message[] {
     const from = message.to;
     return this.peers.map(
@@ -70,6 +78,9 @@ export class FlipFlop implements Device {
   constructor(params: { name: string; peers: string[] }) {
     this.name = params.name;
     this.peers = params.peers;
+  }
+  atDefaultState(): boolean {
+    return !this.on;
   }
 
   process(message: Message): Message[] {
@@ -100,6 +111,9 @@ export class FlipFlop implements Device {
 }
 
 export class Output implements Device {
+  atDefaultState() {
+    return true;
+  }
   process(): Message[] {
     return [];
   }

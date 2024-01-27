@@ -77,14 +77,12 @@ describe('Network', () => {
     expect(network.logs[1].join('\n')).toBe(example1Output);
   });
 
-  test('Example 1 count', () => {
+  test('Example 1: 1000 times', () => {
     const network = new Network();
     example1Input.split('\n').forEach((l) => network.register(l));
     dTest(network.devices);
 
-    for (let i = 0; i < 1000; i++) {
-      network.pressButton();
-    }
+    network.pressMany(1000);
     expect(network.count()).toBe(32000000);
   });
 
@@ -122,14 +120,12 @@ describe('Network', () => {
     expect(network.logs[3].join('\n')).toBe(example2Out4th);
   });
 
-  test('Example 2 count', () => {
+  test('Example 2: 1000 times', () => {
     const network = new Network();
     example2Input.split('\n').forEach((l) => network.register(l));
     dTest(network.devices);
 
-    for (let i = 0; i < 1000; i++) {
-      network.pressButton();
-    }
+    network.pressMany(1000);
     expect(network.count()).toBe(11687500);
   });
 });
