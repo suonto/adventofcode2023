@@ -99,11 +99,8 @@ describe('Network', () => {
     expect(network.logs[0].join('\n')).toBe(example2Out1st);
     expect((network.getDevice('a') as FlipFlop).on).toBeTruthy();
     expect((network.getDevice('b') as FlipFlop).on).toBeTruthy();
-    expect(
-      Array.from(
-        (network.getDevice('con') as Conjunction).inputs.values(),
-      ).every((pulse) => pulse),
-    ).toBeTruthy();
+    expect(con.inputs.get('a')).toBeTruthy();
+    expect(con.inputs.get('b')).toBeTruthy();
 
     dTest('2nd');
     network.pressButton();

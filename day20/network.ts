@@ -48,9 +48,10 @@ export class Network {
 
   pressMany(times: number): void {
     while (!this.cycle) {
-      if (this.pressCount === times - 1) {
+      if (this.pressCount === times) {
         return;
       }
+      dNetwork('press count', this.pressCount);
       this.pressButton();
     }
     dNetwork('Cycle length', this.cycle);
@@ -120,7 +121,7 @@ export class Network {
       this.lowCount++;
     }
 
-    dNetwork('process', this.pressCount, message.toString());
+    dProcess(this.pressCount, message.toString());
     if (this.logging) this.logs[this.logs.length - 1].push(message.toString());
     this.messages.push(...this.getDevice(message.to).process(message));
     return true;

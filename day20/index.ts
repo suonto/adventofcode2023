@@ -9,12 +9,10 @@ async function main() {
   network.register(lines);
   dMain(network.debugDevices());
 
-  for (let i = 0; i < 1; i++) network.pressButton();
-  // network.pressMany(1000);
-  dMain(network.debugDevices());
+  // Note to self: plain loop gives 730797576
+  network.pressMany(1000);
+
   dMain(network.count());
-  // 563501725 too low
-  // 664552384 not the right answer
 }
 
 if (require.main === module) {
