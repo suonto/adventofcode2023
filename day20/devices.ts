@@ -37,10 +37,9 @@ export class Conjunction implements Device {
   }
 
   process(message: Message): Message[] {
-    let pulse = !this.inputs.get(message.from);
-    this.inputs.set(message.from, pulse);
+    this.inputs.set(message.from, message.pulse);
 
-    pulse = Array.from(this.inputs.values()).every((pulse) => pulse)
+    const pulse = Array.from(this.inputs.values()).every((pulse) => pulse)
       ? false
       : true;
 
