@@ -4,21 +4,34 @@ import { Message } from './message';
 export interface Device {
   process: (message: Message) => Message[];
   atDefaultState: () => boolean;
+  getDestinations: () => string[];
+  toString: () => string;
 }
 
 export class Conjunction implements Device {
+  private name: string;
   private d = debug('conjunction');
   inputs = new Map<string, boolean>();
-  private outputs: { name: string; pulse: boolean }[] = [];
+  private destinations: { name: string; pulse: boolean }[] = [];
 
-  constructor(outputs: string[]) {
-    for (const name of outputs) {
-      this.outputs.push({
-        name,
+  constructor(params: { name: string; destinations: string[] }) {
+    this.name = params.name;
+    for (const destName of params.destinations) {
+      this.destinations.push({
+        name: destName,
         pulse: false,
       });
     }
   }
+
+  registerInput(name: string): void {
+    this.inputs.set(name, false);
+  }
+
+  getDestinations(): string[] {
+    return this.destinations.map((d) => d.name);
+  }
+
   atDefaultState(): boolean {
     return Array.from(this.inputs.values()).every((pulse) => !pulse);
   }
@@ -26,15 +39,15 @@ export class Conjunction implements Device {
   process(message: Message): Message[] {
     let pulse = !this.inputs.get(message.from);
     this.inputs.set(message.from, pulse);
-    this.d('inputs', this.inputs);
 
     pulse = Array.from(this.inputs.values()).every((pulse) => pulse)
       ? false
       : true;
-    this.d('updated inputs', this.inputs, 'pulse', pulse);
+
+    this.d(this.toString(), 'sending', pulse);
 
     const from = message.to;
-    return this.outputs.map(
+    return this.destinations.map(
       (peer) =>
         new Message({
           from,
@@ -43,13 +56,25 @@ export class Conjunction implements Device {
         }),
     );
   }
+
+  toString(): string {
+    const inputs = Array.from(this.inputs.entries())
+      .map((input) => `${input[0]}:${input[1] ? 'h' : 'l'}`)
+      .join(', ');
+    return `Conjunction ${this.name} [${inputs}] -> ${this.destinations
+      .map((d) => d.name)
+      .join(', ')}`;
+  }
 }
 
 export class Broadcaster implements Device {
-  private peers: string[];
+  private destinations: string[];
 
-  constructor(peers: string[]) {
-    this.peers = peers;
+  constructor(destinations: string[]) {
+    this.destinations = destinations;
+  }
+  getDestinations(): string[] {
+    return this.destinations;
   }
 
   atDefaultState(): boolean {
@@ -58,7 +83,7 @@ export class Broadcaster implements Device {
 
   process(message: Message): Message[] {
     const from = message.to;
-    return this.peers.map(
+    return this.destinations.map(
       (to) =>
         new Message({
           from,
@@ -66,6 +91,10 @@ export class Broadcaster implements Device {
           pulse: message.pulse,
         }),
     );
+  }
+
+  toString() {
+    return `Broadcaster -> ${this.destinations.join(', ')}`;
   }
 }
 
@@ -79,6 +108,11 @@ export class FlipFlop implements Device {
     this.name = params.name;
     this.peers = params.peers;
   }
+
+  getDestinations(): string[] {
+    return this.peers;
+  }
+
   atDefaultState(): boolean {
     return !this.on;
   }
@@ -104,18 +138,28 @@ export class FlipFlop implements Device {
   }
 
   toString(): string {
-    return `%${this.name} -> ${this.peers.join(', ')} ${
+    return `FlipFlop ${this.name} [${
       this.on ? 'high' : 'low'
-    }`;
+    }] -> ${this.peers.join(', ')}`;
   }
 }
 
 export class Output implements Device {
+  private name: string;
+  constructor(name: string) {
+    this.name = name;
+  }
+  getDestinations(): string[] {
+    return [];
+  }
   atDefaultState() {
     return true;
   }
   process(): Message[] {
     return [];
+  }
+  toString() {
+    return `Output ${this.name}`;
   }
 }
 
@@ -139,11 +183,11 @@ export function parseDevice(spec: string): { name: string; device: Device } {
     return { name, device: new FlipFlop({ name, peers }) };
   } else {
     const name = spec.slice(1).split(' ')[0];
-    const peers = spec
+    const destinations = spec
       .split('>')[1]
       .split(',')
-      .map((name) => name.trim());
+      .map((destName) => destName.trim());
 
-    return { name, device: new Conjunction(peers) };
+    return { name, device: new Conjunction({ name, destinations }) };
   }
 }

@@ -6,10 +6,15 @@ async function main() {
   const dMain = debug('main');
   const network = new Network({ logging: true });
   const lines = await read('./input.txt');
-  lines.map((l) => network.register(l));
+  network.register(lines);
+  dMain(network.debugDevices());
 
-  network.pressMany(1000);
+  for (let i = 0; i < 1; i++) network.pressButton();
+  // network.pressMany(1000);
+  dMain(network.debugDevices());
   dMain(network.count());
+  // 563501725 too low
+  // 664552384 not the right answer
 }
 
 if (require.main === module) {

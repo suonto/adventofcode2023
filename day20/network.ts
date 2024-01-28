@@ -1,5 +1,5 @@
 import debug from 'debug';
-import { Conjunction, Device, FlipFlop, Output, parseDevice } from './devices';
+import { Conjunction, Device, Output, parseDevice } from './devices';
 import { Message } from './message';
 
 const dNetwork = debug('network');
@@ -10,7 +10,7 @@ export class Network {
   private pressCount = 0;
   private lowCount = 0;
   private highCount = 0;
-  private cycle: undefined | number = undefined;
+  cycle: undefined | number = undefined;
   private cycleLowCount = 0;
   private cycleHighCount = 0;
 
@@ -22,26 +22,27 @@ export class Network {
   logs: string[][] = [];
   devices = new Map<string, Device>();
 
-  register(spec: string): void {
-    // Add output once if needed
-    if (spec.endsWith('output') && !this.devices.get('output')) {
-      this.devices.set('output', new Output());
+  register(specs: string[]): void {
+    for (const spec of specs) {
+      const { name, device } = parseDevice(spec);
+      this.devices.set(name, device);
     }
-    const { name, device } = parseDevice(spec);
-    this.devices.set(name, device);
 
-    // Ensure FlipFlop peers are registered in Conjunction inputs
-    if (device instanceof Conjunction || device instanceof FlipFlop) {
-      for (const [name, device] of this.devices.entries()) {
-        if (device instanceof FlipFlop) {
-          device.peers.forEach((p) => {
-            const peerDevice = this.devices.get(p);
-            if (peerDevice instanceof Conjunction) {
-              peerDevice.inputs.set(name, false);
-            }
-          });
+    for (const [name, device] of this.devices.entries()) {
+      // Ensure Outputs are registered
+      for (const dest of device.getDestinations()) {
+        if (!this.devices.get(dest)) {
+          this.devices.set(dest, new Output(dest));
         }
       }
+
+      // Ensure all peers are registered in Conjunction inputs
+      device.getDestinations().forEach((destName) => {
+        const peerDevice = this.devices.get(destName);
+        if (peerDevice instanceof Conjunction) {
+          peerDevice.registerInput(name);
+        }
+      });
     }
   }
 
@@ -56,9 +57,10 @@ export class Network {
     const reminder = (times - this.pressCount) % this.cycle;
     const cycles = (times - this.pressCount - reminder) / this.cycle;
     dNetwork(
-      cycles,
+      `(1 + ${cycles}`,
       'cycles of',
       this.cycle,
+      `(total ${(cycles + 1) * this.cycle})`,
       'then pressing',
       reminder,
       'times.',
@@ -103,6 +105,7 @@ export class Network {
   }
 
   process(): boolean {
+    const dProcess = debug('process');
     const message = this.messages.shift();
     if (!message) {
       return false;
@@ -117,7 +120,7 @@ export class Network {
       this.lowCount++;
     }
 
-    dNetwork('process', message.toString());
+    dNetwork('process', this.pressCount, message.toString());
     if (this.logging) this.logs[this.logs.length - 1].push(message.toString());
     this.messages.push(...this.getDevice(message.to).process(message));
     return true;
@@ -127,5 +130,9 @@ export class Network {
     const device = this.devices.get(name);
     if (!device) throw new Error(`Network cannot find device ${name}`);
     return device;
+  }
+
+  debugDevices(): string[] {
+    return Array.from(this.devices.values()).map((d) => d.toString());
   }
 }
