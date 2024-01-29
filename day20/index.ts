@@ -9,10 +9,9 @@ async function main() {
   network.register(lines);
   dMain(network.debugDevices());
 
-  // Note to self: plain loop gives 730797576
-  network.pressMany(1000);
-
-  dMain(network.count());
+  while (true) {
+    network.pressButton();
+  }
 }
 
 if (require.main === module) {

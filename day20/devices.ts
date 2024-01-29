@@ -6,12 +6,19 @@ export interface Device {
   atDefaultState: () => boolean;
   getDestinations: () => string[];
   toString: () => string;
+  name: string;
 }
 
 export class Conjunction implements Device {
-  private name: string;
+  static lowLogs = {
+    jj: [] as number[],
+    gf: [] as number[],
+    xz: [] as number[],
+    bz: [] as number[],
+  };
+  name: string;
   private d = debug('conjunction');
-  inputs = new Map<string, boolean>();
+  private inputs = new Map<string, boolean>();
   private destinations: { name: string; pulse: boolean }[] = [];
 
   constructor(params: { name: string; destinations: string[] }) {
@@ -22,6 +29,10 @@ export class Conjunction implements Device {
         pulse: false,
       });
     }
+  }
+
+  getInputs() {
+    return Array.from(this.inputs.keys());
   }
 
   registerInput(name: string): void {
@@ -64,6 +75,12 @@ export class Conjunction implements Device {
       .map((d) => d.name)
       .join(', ')}`;
   }
+
+  asBinary(): string {
+    return Array.from(this.inputs.values())
+      .map((pulse) => (pulse ? '1' : '0'))
+      .join('');
+  }
 }
 
 export class Broadcaster implements Device {
@@ -72,6 +89,7 @@ export class Broadcaster implements Device {
   constructor(destinations: string[]) {
     this.destinations = destinations;
   }
+  name: string;
   getDestinations(): string[] {
     return this.destinations;
   }
@@ -99,9 +117,18 @@ export class Broadcaster implements Device {
 
 export class FlipFlop implements Device {
   private d = debug('ff');
-  private name: string;
+  name: string;
   on = false;
   peers: string[];
+  private inputs: string[] = [];
+
+  registerInput(name: string): void {
+    this.inputs.push(name);
+  }
+
+  getInputs() {
+    return this.inputs;
+  }
 
   constructor(params: { name: string; peers: string[] }) {
     this.name = params.name;
@@ -137,14 +164,14 @@ export class FlipFlop implements Device {
   }
 
   toString(): string {
-    return `FlipFlop ${this.name} [${
-      this.on ? 'high' : 'low'
-    }] -> ${this.peers.join(', ')}`;
+    return `FlipFlop ${this.name} [${this.inputs.join(', ')}]:${
+      this.on ? 'h' : 'l'
+    } -> ${this.peers.join(', ')}`;
   }
 }
 
 export class Output implements Device {
-  private name: string;
+  name: string;
   constructor(name: string) {
     this.name = name;
   }

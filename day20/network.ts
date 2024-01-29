@@ -1,8 +1,10 @@
 import debug from 'debug';
-import { Conjunction, Device, Output, parseDevice } from './devices';
+import { lcm } from '../util/gcd';
+import { Conjunction, Device, FlipFlop, Output, parseDevice } from './devices';
 import { Message } from './message';
 
 const dNetwork = debug('network');
+const dObserve = debug('observe');
 
 export class Network {
   private messages: Message[] = [];
@@ -39,7 +41,10 @@ export class Network {
       // Ensure all peers are registered in Conjunction inputs
       device.getDestinations().forEach((destName) => {
         const peerDevice = this.devices.get(destName);
-        if (peerDevice instanceof Conjunction) {
+        if (
+          peerDevice instanceof Conjunction ||
+          peerDevice instanceof FlipFlop
+        ) {
           peerDevice.registerInput(name);
         }
       });
@@ -74,6 +79,7 @@ export class Network {
   }
 
   pressButton(): void {
+    // dNetwork('Press index', this.pressCount);
     this.pressCount++;
     this.messages.push(
       new Message({
@@ -89,6 +95,32 @@ export class Network {
     if (this.cycle === undefined && this.atDefaultState()) {
       this.cycle = this.pressCount;
     }
+  }
+
+  /**
+   * Only gh outputs to rx.
+   * gh needs to remember high for all  inputs to output low.
+   *
+   * In other words, all primary (rk, cd, zf, qx) inputs send to gh needs to be high
+   * for gh to output low to rx.
+   *
+   * Seems all primary inputs are Conjunctions with exactly
+   * one Conjunction input (secondary input).
+   *
+   * A primary input sends high when the corresponding secondary
+   * input sends low to primary.
+   *
+   * That means all secondary inputs (jj, gf, xz, bz) need to be LOW
+   * at the same time.
+   *
+   * Let's observe.
+   */
+  rxInputs(): { primary: string[]; secondary: string[] } {
+    const primary = (this.getDevice('gh') as Conjunction).getInputs();
+    const secondary = primary.map(
+      (i) => (this.getDevice(i) as Conjunction).getInputs().at(0)!,
+    );
+    return { primary, secondary };
   }
 
   private run() {
@@ -112,7 +144,48 @@ export class Network {
       return false;
     }
 
-    // Keep count how many pulses happen in a cycle
+    // Observe rx inputs
+    const { primary, secondary } = this.rxInputs();
+    if (
+      // From secondary to primary, LOW pulse
+      !message.pulse &&
+      secondary.includes(message.from) &&
+      primary.includes(message.to)
+    ) {
+      dObserve('count', this.pressCount, message.toString());
+      dObserve(
+        secondary.map(
+          (name) =>
+            `${name}: ${(this.getDevice(name) as Conjunction).asBinary()}`,
+        ),
+      );
+      dObserve(
+        primary.map(
+          (name) =>
+            `${name}: ${(this.getDevice(name) as Conjunction).asBinary()}`,
+        ),
+      );
+      Conjunction.lowLogs[message.from].push(this.pressCount);
+      if (
+        Math.min(
+          ...Object.values(Conjunction.lowLogs).map((log) => log.length),
+        ) > 5
+      ) {
+        const cycles: number[] = [];
+        for (const [name, logs] of Object.entries(Conjunction.lowLogs)) {
+          dObserve(
+            name,
+            Array.from(logs.entries()).map(
+              ([i, count]) =>
+                `${count} (+ ${count - (i > 0 ? logs[i - 1] : 0)})`,
+            ),
+          );
+          cycles.push(logs[1] - logs[0]);
+        }
+        throw new Error(`We are done here ${cycles.reduce(lcm)}`);
+      }
+    }
+
     if (message.pulse) {
       if (!this.cycle) this.cycleHighCount++;
       this.highCount++;
