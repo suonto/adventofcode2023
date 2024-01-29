@@ -1,5 +1,6 @@
 import { open } from 'node:fs/promises';
 import path from 'node:path';
+import { lcm } from '../util/gcd';
 
 type Point = {
   left: string;
@@ -50,11 +51,6 @@ function parseLine(line: string): { id: string } & Point {
     }
     cadences.push(i);
     console.log(start, '->', current, i);
-
-    // couple of utilities from
-    // https://stackoverflow.com/questions/47047682/least-common-multiple-of-an-array-values-using-euclidean-algorithm
-    const gcd = (a, b) => (a ? gcd(b % a, a) : b);
-    const lcm = (a, b) => (a * b) / gcd(a, b);
 
     console.log(cadences.reduce(lcm));
   }
