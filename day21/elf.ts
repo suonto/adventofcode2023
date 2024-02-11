@@ -1,3 +1,4 @@
+import debug from 'debug';
 import { Direction, diffs, directions } from '../util/directions';
 import { Point, samePoint } from '../util/point';
 import { Garden } from './garden';
@@ -15,6 +16,7 @@ import { Garden } from './garden';
  * Good thing that they're clonable.
  */
 export class Elf {
+  private readonly d = debug('elf');
   private readonly garden: Garden;
   path: Point[];
   heading: Direction;
@@ -30,21 +32,27 @@ export class Elf {
    * @returns this if still alive.
    */
   step(): Elf | undefined {
+    this.d('step', this.pos());
     const { x: diffX, y: diffY } = diffs(this.heading);
-    const newPos = { x: this.pos().x * diffX, y: this.pos().y * diffY };
+    const newPos = { x: this.pos().x + diffX, y: this.pos().y + diffY };
     const terrain = this.garden.getTerrain(newPos);
 
     // Contemplate existential questions (and possibly die)
-    if (
-      !terrain ||
-      terrain === '#' ||
-      this.path.find((pos) => samePoint(pos, newPos))
-    ) {
+    if (!terrain) {
+      this.d('death (existential)', this.pos());
       return undefined;
+    } else if (terrain === '#') {
+      this.d('death (injury)', this.pos());
+      return undefined;
+      // TODO Upon confusion death drop a blinker
+      // } else if (this.path.find((pos) => samePoint(pos, newPos))) {
+      //   this.d('death (confusion)', this.pos());
+      //   return undefined;
     }
 
     // take step
     this.path.push(newPos);
+    this.d('stepped', this.pos());
     return this;
   }
 
@@ -62,12 +70,16 @@ export class Elf {
   clone() {
     return new Elf({
       garden: this.garden,
-      path: this.path,
+      path: [...this.path.map((pos) => ({ ...pos }))],
       heading: this.heading,
     });
   }
 
   pos(): Point {
     return this.path.at(-1) ?? this.garden.getStart();
+  }
+
+  occupies(pos: Point): boolean {
+    return samePoint(pos, this.pos());
   }
 }

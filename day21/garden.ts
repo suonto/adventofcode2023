@@ -3,16 +3,12 @@ import { Point } from '../util/point';
 export type Terrain = '#' | '.' | 'S';
 
 export class Garden {
-  private readonly grid: Terrain[][] = [];
-  private stepCount = 0;
-  private starts: Point[];
+  readonly grid: Terrain[][] = [];
 
   constructor(lines: string[]) {
     for (const line of lines) {
       this.grid.push(line.split('') as Terrain[]);
     }
-
-    this.starts = [this.getStart()];
   }
 
   getTerrain(pos: Point): Terrain | undefined {
