@@ -44,13 +44,13 @@ export class Elf {
     } else if (terrain === '#') {
       this.d('death (injury)', this.pos());
       return undefined;
-      // TODO Upon confusion death drop a blinker
-      // } else if (this.path.find((pos) => samePoint(pos, newPos))) {
-      //   this.d('death (confusion)', this.pos());
-      //   return undefined;
+    } else if (terrain === 'B') {
+      this.d('death (shame)', this.pos());
+      return undefined;
     }
 
     // take step
+    this.garden.setBlinker(newPos);
     this.path.push(newPos);
     this.d('stepped', this.pos());
     return this;

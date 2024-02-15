@@ -4,19 +4,27 @@ import { read } from '../util/read';
 import { Elf } from './elf';
 import { Garden } from './garden';
 
-function inspect(params: { garden: Garden; elfs: Elf[] }) {
-  const { garden, elfs } = params;
+function inspect(params: { garden: Garden; elfs: Elf[]; step: number }) {
+  const { garden, elfs, step } = params;
   let sum = 0;
   const resultLines: string[] = [];
+  const start = garden.getStart();
   for (let y = 0; y < garden.grid.length; y++) {
     let row = '';
     for (let x = 0; x < garden.grid.length; x++) {
+      const distance = Math.abs(y - start.y) + Math.abs(x - start.x);
       const terrain = garden.getTerrain({ x, y });
-      if (elfs.find((e) => e.occupies({ x, y })) || terrain === 'S') {
+      if (elfs.find((e) => e.occupies({ x, y }))) {
+        row += 'E';
+        sum++;
+      } else if (
+        (terrain === 'B' || terrain === 'S') &&
+        distance % 2 === step % 2
+      ) {
         row += 'O';
         sum++;
       } else {
-        row += terrain;
+        row += terrain === 'B' ? '.' : terrain;
       }
     }
     resultLines.push(row);
@@ -56,7 +64,7 @@ async function main(steps: number) {
 
   for (let i = 0; i < steps; i++) {
     elfs = advance(elfs);
-    const { sum, resultLines } = inspect({ garden, elfs });
+    const { sum, resultLines } = inspect({ garden, elfs, step: i });
     dMain(
       'after step',
       i + 1,
@@ -66,9 +74,11 @@ async function main(steps: number) {
       elfs.length,
       `\n${resultLines.join('\n')}`,
     );
+    if (!elfs.length)
+      throw new Error(`No more elves alive after ${i + 1} steps. Sad.`);
   }
 }
 
 if (require.main === module) {
-  main(64);
+  main(265);
 }

@@ -1,6 +1,6 @@
 import { Point } from '../util/point';
 
-export type Terrain = '#' | '.' | 'S';
+export type Terrain = '#' | '.' | 'S' | 'B';
 
 export class Garden {
   readonly grid: Terrain[][] = [];
@@ -13,6 +13,12 @@ export class Garden {
 
   getTerrain(pos: Point): Terrain | undefined {
     return this.grid.at(pos.y)?.at(pos.x);
+  }
+
+  setBlinker(pos: Point): void {
+    if (this.getTerrain(pos) !== 'S') {
+      this.grid[pos.y][pos.x] = 'B';
+    }
   }
 
   getStart(): Point {
