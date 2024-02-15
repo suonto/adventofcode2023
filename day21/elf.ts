@@ -6,7 +6,7 @@ import { Garden } from './garden';
 /**
  * Garden elfs are dumb. They can only remember:
  *  - current heading
- *  - the path they've walked
+ *  - current position
  *
  * Garden elfs are fragile:
  *  - if they hit a rock they die of injury
@@ -18,12 +18,12 @@ import { Garden } from './garden';
 export class Elf {
   private readonly d = debug('elf');
   private readonly garden: Garden;
-  path: Point[];
+  pos: Point;
   heading: Direction;
 
-  constructor(params: { garden: Garden; path: Point[]; heading: Direction }) {
+  constructor(params: { garden: Garden; pos: Point; heading: Direction }) {
     this.garden = params.garden;
-    this.path = params.path;
+    this.pos = params.pos;
     this.heading = params.heading;
   }
 
@@ -32,27 +32,27 @@ export class Elf {
    * @returns this if still alive.
    */
   step(): Elf | undefined {
-    this.d('step', this.pos());
+    this.d('step', this.pos);
     const { x: diffX, y: diffY } = diffs(this.heading);
-    const newPos = { x: this.pos().x + diffX, y: this.pos().y + diffY };
+    const newPos = { x: this.pos.x + diffX, y: this.pos.y + diffY };
     const terrain = this.garden.getTerrain(newPos);
 
     // Contemplate existential questions (and possibly die)
     if (!terrain) {
-      this.d('death (existential)', this.pos());
+      this.d('death (existential)', this.pos);
       return undefined;
     } else if (terrain === '#') {
-      this.d('death (injury)', this.pos());
+      this.d('death (injury)', this.pos);
       return undefined;
     } else if (terrain === 'B') {
-      this.d('death (shame)', this.pos());
+      this.d('death (shame)', this.pos);
       return undefined;
     }
 
     // take step
     this.garden.setBlinker(newPos);
-    this.path.push(newPos);
-    this.d('stepped', this.pos());
+    this.pos = newPos;
+    this.d('stepped', this.pos);
     return this;
   }
 
@@ -70,16 +70,12 @@ export class Elf {
   clone() {
     return new Elf({
       garden: this.garden,
-      path: [...this.path.map((pos) => ({ ...pos }))],
+      pos: { ...this.pos },
       heading: this.heading,
     });
   }
 
-  pos(): Point {
-    return this.path.at(-1) ?? this.garden.getStart();
-  }
-
   occupies(pos: Point): boolean {
-    return samePoint(pos, this.pos());
+    return samePoint(pos, this.pos);
   }
 }

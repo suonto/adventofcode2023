@@ -4,8 +4,8 @@ import { read } from '../util/read';
 import { Elf } from './elf';
 import { Garden } from './garden';
 
-function inspect(params: { garden: Garden; elfs: Elf[]; step: number }) {
-  const { garden, elfs, step } = params;
+function inspect(params: { garden: Garden; elfs: Elf[]; steps: number }) {
+  const { garden, elfs, steps } = params;
   let sum = 0;
   const resultLines: string[] = [];
   const start = garden.getStart();
@@ -16,10 +16,12 @@ function inspect(params: { garden: Garden; elfs: Elf[]; step: number }) {
       const terrain = garden.getTerrain({ x, y });
       if (elfs.find((e) => e.occupies({ x, y }))) {
         row += 'E';
-        sum++;
+        if (distance % 2 === steps % 2) {
+          sum++;
+        }
       } else if (
         (terrain === 'B' || terrain === 'S') &&
-        distance % 2 === step % 2
+        distance % 2 === steps % 2
       ) {
         row += 'O';
         sum++;
@@ -41,11 +43,7 @@ function advance(elfs: Elf[]) {
       .map((c) => c.step())
       .filter((c) => c) as Elf[];
     for (const newClone of newClones) {
-      if (
-        newClone &&
-        // max one new elf per garden block please
-        !clones.find((c) => c.occupies(newClone.pos()))
-      ) {
+      if (newClone) {
         clones.push(newClone);
       }
     }
@@ -56,29 +54,53 @@ function advance(elfs: Elf[]) {
 
 async function main(steps: number) {
   const dMain = debug('main');
-  const lines = await read(path.join(__dirname, 'input.txt'));
+  const lines = await read(path.join(__dirname, 'mega.txt'));
 
   const garden = new Garden(lines);
 
-  let elfs = [new Elf({ garden, path: [], heading: 'up' })];
+  let elfs = [new Elf({ garden, pos: garden.getStart(), heading: 'up' })];
 
+  let plotsInDiamond = 0;
   for (let i = 0; i < steps; i++) {
     elfs = advance(elfs);
-    const { sum, resultLines } = inspect({ garden, elfs, step: i });
+    const step = i + 1;
+    const { sum, resultLines } = inspect({ garden, elfs, steps });
     dMain(
       'after step',
-      i + 1,
+      step,
       'reach is',
       sum,
       'clones alive',
       elfs.length,
       `\n${resultLines.join('\n')}`,
     );
-    if (!elfs.length)
-      throw new Error(`No more elves alive after ${i + 1} steps. Sad.`);
+    if (step === 131 + 65) {
+      dMain('Middle diamond. Sum', sum);
+      return;
+    }
+    if (!elfs.length) {
+      dMain(`No more elves alive after ${step} steps. Sad.`);
+      plotsInDiamond = sum * 2;
+      break;
+    }
   }
+
+  const diamondDiameter = 2 * garden.grid.length;
+  dMain('diamondDiameter', diamondDiameter);
+  const diamondRangeBoundary =
+    1 + (steps - garden.grid.length) / diamondDiameter;
+  let diamondCount = 1;
+  let diamondMultiplier = 2;
+  for (let i = 0; i < diamondRangeBoundary; i++) {
+    diamondCount += 4 * diamondMultiplier;
+
+    diamondMultiplier++;
+  }
+  dMain('diamondCount', diamondCount, 'total', diamondCount * plotsInDiamond);
+  // 20463656509 too low
+  // 304335499601848 too low
 }
 
 if (require.main === module) {
-  main(265);
+  main(26501365);
 }
