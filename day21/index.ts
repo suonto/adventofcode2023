@@ -74,7 +74,7 @@ async function main(steps: number) {
       elfs.length,
       `\n${resultLines.join('\n')}`,
     );
-    if (step === 131 + 65) {
+    if (step === 131) {
       dMain('Middle diamond. Sum', sum);
       return;
     }
@@ -85,20 +85,20 @@ async function main(steps: number) {
     }
   }
 
-  const diamondDiameter = 2 * garden.grid.length;
-  dMain('diamondDiameter', diamondDiameter);
-  const diamondRangeBoundary =
-    1 + (steps - garden.grid.length) / diamondDiameter;
-  let diamondCount = 1;
-  let diamondMultiplier = 2;
-  for (let i = 0; i < diamondRangeBoundary; i++) {
-    diamondCount += 4 * diamondMultiplier;
-
-    diamondMultiplier++;
-  }
-  dMain('diamondCount', diamondCount, 'total', diamondCount * plotsInDiamond);
+  // const diamondDiameter = 2 * garden.grid.length;
+  // dMain('diamondDiameter', diamondDiameter);
+  // const plotsInDiamond = 33348;
+  // const diamondRangeBoundary = 67433;
+  // let diamondCount = 1;
+  // let diamondMultiplier = 2;
+  // for (let i = 0; i < diamondRangeBoundary; i++) {
+  //   diamondCount += 4 * diamondMultiplier;
+  //   diamondMultiplier += 2;
+  // }
+  // dMain('diamondCount', diamondCount, 'total', diamondCount * plotsInDiamond);
   // 20463656509 too low
   // 304335499601848 too low
+  // 606570363212772
 }
 
 if (require.main === module) {
