@@ -12,7 +12,9 @@ class Brick {
   name?: string;
   top: Surface;
   bot: Surface;
-  supporters: Brick[] = [];
+  supportsDirectly: Brick[] = [];
+  supportsIndirectly: Brick[] | undefined = undefined;
+  supportedBy: Brick[] = [];
 
   constructor(params: { start: Pos3D; end: Pos3D; name?: string }) {
     const { start, end, name } = params;
@@ -33,7 +35,24 @@ class Brick {
   }
 
   registerSupport(other: Brick) {
-    this.supporters.push(other);
+    other.supportsDirectly.push(this);
+    this.supportedBy.push(other);
+  }
+
+  supports(): Brick[] {
+    if (!this.supportsIndirectly) {
+      this.supportsIndirectly = [];
+      for (const direct of this.supportsDirectly) {
+        const supports = direct.supports();
+        for (const brick of supports.filter(
+          (b) => !this.supportsIndirectly?.includes(b),
+        )) {
+          this.supportsIndirectly.push(brick);
+        }
+      }
+    }
+
+    return [...this.supportsDirectly, ...this.supportsIndirectly];
   }
 
   decend(h: number) {
@@ -56,7 +75,7 @@ class Djenga {
       (a, b) => a.top.z - b.top.z,
     );
     let candidate = supporterCandidates.pop();
-    while (candidate && !brick.supporters.length) {
+    while (candidate && !brick.supportedBy.length) {
       const height = candidate?.top.z ?? 0;
       brick.decendTo(height);
       while (candidate?.top.z === height) {
@@ -73,9 +92,16 @@ class Djenga {
   }
 
   critical(): Brick[] {
-    return this.bricks
-      .filter((b) => b.supporters.length === 1)
-      .map((b) => b.supporters[0]);
+    const critical: Brick[] = [];
+    for (const brick of this.bricks) {
+      if (brick.supportedBy.length === 1) {
+        const supporter = brick.supportedBy[0];
+        if (!critical.includes(supporter)) {
+          critical.push(supporter);
+        }
+      }
+    }
+    return critical;
   }
 }
 
@@ -102,7 +128,7 @@ function parseLine(line: string): Brick {
   const dMain = debug('main');
 
   const bricks: Brick[] = [];
-  const names = true;
+  const names = false;
   for await (const line of file.readLines()) {
     const brick = parseLine(line);
     if (names) brick.name = String.fromCharCode(97 + bricks.length);
@@ -117,9 +143,17 @@ function parseLine(line: string): Brick {
   }
   const critical = djenga.critical();
 
-  if (names)
+  let sum = 0;
+  for (const brick of critical) {
+    const supports = brick.supports();
+    sum += supports.length;
     dMain(
-      djenga.bricks.filter((b) => !critical.includes(b)).map((b) => b.name),
+      brick.name,
+      'supports',
+      supports.length,
+      supports.map((b) => b.name),
+      'sum',
+      sum,
     );
-  dMain(djenga.bricks.filter((b) => !critical.includes(b)).length);
+  }
 })();
