@@ -9,12 +9,14 @@ type Pos3D = Point & {
 };
 
 class Brick {
+  private readonly d = debug('brick');
   name?: string;
   top: Surface;
   bot: Surface;
   supportsDirectly: Brick[] = [];
   supportsIndirectly: Brick[] | undefined = undefined;
   supportedBy: Brick[] = [];
+  criticallySupports: Brick[] | undefined = undefined;
 
   constructor(params: { start: Pos3D; end: Pos3D; name?: string }) {
     const { start, end, name } = params;
@@ -53,6 +55,29 @@ class Brick {
     }
 
     return [...this.supportsDirectly, ...this.supportsIndirectly];
+  }
+
+  getCriticallySupports(): Brick[] {
+    this.d(this.name, 'criticallySupports');
+
+    if (!this.criticallySupports) {
+      const supportees = this.supports();
+      let result = [...supportees];
+
+      for (const supportee of supportees) {
+        this.d(supportee.name);
+        if (
+          !supportee.supportedBy.every((b) => [this, ...supportees].includes(b))
+        ) {
+          for (const toBeRemoved of [supportee, ...supportee.supports()]) {
+            result = result.filter((b) => b.name !== toBeRemoved.name);
+            this.d('toBeRemoved', toBeRemoved.name);
+          }
+        }
+      }
+      this.criticallySupports = result;
+    }
+    return this.criticallySupports;
   }
 
   decend(h: number) {
@@ -129,9 +154,12 @@ function parseLine(line: string): Brick {
 
   const bricks: Brick[] = [];
   const names = false;
+  let brickIndex = 0;
   for await (const line of file.readLines()) {
     const brick = parseLine(line);
-    if (names) brick.name = String.fromCharCode(97 + bricks.length);
+    brick.name = names
+      ? String.fromCharCode(97 + bricks.length)
+      : `${brickIndex++}`;
     bricks.push(brick);
   }
 
@@ -145,15 +173,8 @@ function parseLine(line: string): Brick {
 
   let sum = 0;
   for (const brick of critical) {
-    const supports = brick.supports();
+    const supports = brick.getCriticallySupports();
     sum += supports.length;
-    dMain(
-      brick.name,
-      'supports',
-      supports.length,
-      supports.map((b) => b.name),
-      'sum',
-      sum,
-    );
+    dMain(brick.name, 'supports', supports.length, 'sum', sum);
   }
 })();
