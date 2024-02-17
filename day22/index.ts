@@ -1,3 +1,4 @@
+import debug from 'debug';
 import { open } from 'node:fs/promises';
 import path from 'node:path';
 import { Point } from '../util/point';
@@ -8,11 +9,14 @@ type Pos3D = Point & {
 };
 
 class Brick {
+  name?: string;
   top: Surface;
   bot: Surface;
+  supporters: Brick[] = [];
 
-  constructor(params: { start: Pos3D; end: Pos3D }) {
-    const { start, end } = params;
+  constructor(params: { start: Pos3D; end: Pos3D; name?: string }) {
+    const { start, end, name } = params;
+    this.name = name;
     if (!(start.z < end.z)) {
       throw new Error('End z not gt start z');
     }
@@ -28,21 +32,49 @@ class Brick {
     });
   }
 
+  registerSupport(other: Brick) {
+    this.supporters.push(other);
+  }
+
   decend(h: number) {
     this.bot.z -= h;
     this.top.z -= h;
   }
+
+  decendTo(h: number) {
+    const diff = this.bot.z - h;
+    this.decend(diff);
+  }
 }
 
 class Djenga {
-  floors: Surface[][] = [];
+  private readonly d = debug('djenga');
+  bricks: Brick[] = [];
 
   addBrick(brick: Brick): void {
-    for (let i = this.floors.length - 1; i >= 0; i--) {
-      const floor = this.floors[i];
-      const overlaps = floor.map((s) => s.overlap(brick.bot));
+    const supporterCandidates = [...this.bricks].sort(
+      (a, b) => a.top.z - b.top.z,
+    );
+    let candidate = supporterCandidates.pop();
+    while (candidate && !brick.supporters.length) {
+      const height = candidate?.top.z ?? 0;
+      brick.decendTo(height);
+      while (candidate?.top.z === height) {
+        if (candidate.top.overlap(brick.bot)) {
+          this.d(candidate?.name, 'supports', brick.name, 'at height', height);
+          brick.registerSupport(candidate);
+        }
+        candidate = supporterCandidates.pop();
+      }
     }
+
+    this.bricks.push(brick);
+    this.d('Added brick:', brick.name, 'to floor', brick.bot.z);
   }
+
+  // couldDisintegrate(brick: Brick): boolean {
+
+  // }
 }
 
 function parseLine(line: string): Brick {
@@ -68,12 +100,15 @@ function parseLine(line: string): Brick {
 
   const bricks: Brick[] = [];
   for await (const line of file.readLines()) {
-    bricks.push(parseLine(line));
+    const brick = parseLine(line);
+    brick.name = String.fromCharCode(97 + bricks.length);
+    bricks.push(brick);
   }
 
   bricks.sort((a, b) => a.bot.z - b.bot.z);
-  bricks.forEach((b) => console.log(b));
 
+  const djenga = new Djenga();
   for (const brick of bricks) {
+    djenga.addBrick(brick);
   }
 })();
