@@ -72,9 +72,11 @@ class Djenga {
     this.d('Added brick:', brick.name, 'to floor', brick.bot.z);
   }
 
-  // couldDisintegrate(brick: Brick): boolean {
-
-  // }
+  critical(): Brick[] {
+    return this.bricks
+      .filter((b) => b.supporters.length === 1)
+      .map((b) => b.supporters[0]);
+  }
 }
 
 function parseLine(line: string): Brick {
@@ -97,11 +99,13 @@ function parseLine(line: string): Brick {
 
 (async () => {
   const file = await open(path.join(__dirname, '.', 'input.txt'));
+  const dMain = debug('main');
 
   const bricks: Brick[] = [];
+  const names = true;
   for await (const line of file.readLines()) {
     const brick = parseLine(line);
-    brick.name = String.fromCharCode(97 + bricks.length);
+    if (names) brick.name = String.fromCharCode(97 + bricks.length);
     bricks.push(brick);
   }
 
@@ -111,4 +115,11 @@ function parseLine(line: string): Brick {
   for (const brick of bricks) {
     djenga.addBrick(brick);
   }
+  const critical = djenga.critical();
+
+  if (names)
+    dMain(
+      djenga.bricks.filter((b) => !critical.includes(b)).map((b) => b.name),
+    );
+  dMain(djenga.bricks.filter((b) => !critical.includes(b)).length);
 })();
