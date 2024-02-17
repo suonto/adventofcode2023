@@ -1,29 +1,47 @@
 import { open } from 'node:fs/promises';
 import path from 'node:path';
 import { Point } from '../util/point';
+import { Surface } from './surface';
 
 type Pos3D = Point & {
   z: number;
 };
 
-type Surface = {
-  start: Point;
-  end: Point;
-  z: number;
-};
-
 class Brick {
-  start: Pos3D;
-  end: Pos3D;
+  top: Surface;
+  bot: Surface;
 
   constructor(params: { start: Pos3D; end: Pos3D }) {
-    this.start = params.start;
-    this.end = params.end;
+    const { start, end } = params;
+    if (!(start.z < end.z)) {
+      throw new Error('End z not gt start z');
+    }
+    this.bot = new Surface({
+      start: { x: start.x, y: start.y },
+      end: { x: end.x, y: end.y },
+      z: start.z,
+    });
+    this.top = new Surface({
+      start: { x: start.x, y: start.y },
+      end: { x: end.x, y: end.y },
+      z: end.z,
+    });
   }
 
   decend(h: number) {
-    this.start.z -= h;
-    this.end.z -= h;
+    this.bot.z -= h;
+    this.top.z -= h;
+  }
+}
+
+class Djenga {
+  floors: Surface[][] = [];
+
+  addBrick(brick: Brick): void {
+    for (let i = this.floors.length - 1; i >= 0; i--) {
+      const floor = this.floors[i];
+      const overlaps = floor.map((s) => s.overlap(brick.bot));
+    }
   }
 }
 
@@ -53,7 +71,7 @@ function parseLine(line: string): Brick {
     bricks.push(parseLine(line));
   }
 
-  bricks.sort((a, b) => a.start.z - b.start.z);
+  bricks.sort((a, b) => a.bot.z - b.bot.z);
   bricks.forEach((b) => console.log(b));
 
   for (const brick of bricks) {
