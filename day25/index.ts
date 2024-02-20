@@ -22,8 +22,6 @@ const parseNetwork = async (): Promise<Network> => {
       }
     }
   }
-  dParse(connectionParams);
-  dParse(network.hubs.map((h) => h.name));
 
   for (const { name, peers } of connectionParams) {
     const subject = network.hubs.find((h) => h.name === name)!;
@@ -31,64 +29,118 @@ const parseNetwork = async (): Promise<Network> => {
     subject.addConnections(others);
   }
 
+  dParse(
+    network.hubs.map((h) => ({
+      name: h.name,
+      peers: h.peers.map((h) => h.name),
+    })),
+  );
+
   return network;
 };
 
-type Connection = {
+class Connection {
+  private readonly d = debug('connection');
+  readonly src: Hub;
+  readonly dest: Hub;
   path: Hub[];
-};
 
-const advance = (conn: Connection, others: Connection[]): Connection[] => {
-  const result: Connection[] = [];
-  const current = conn.path.at(-1)!;
-  for (const peer of current.peers) {
-    let unique = true;
-    for (const path of others.map((c) => c.path)) {
-      if (path.includes(peer)) {
-        unique = false;
+  constructor(params: { src: Hub; dest: Hub; path: Hub[] }) {
+    this.src = params.src;
+    this.dest = params.dest;
+    this.path = params.path;
+  }
+
+  intercects(other: Connection): boolean {
+    let result = false;
+    for (const hub of this.path) {
+      if (hub !== this.dest && !other.path.every((h) => h !== hub)) {
+        result = true;
         break;
       }
     }
-    if (unique) {
-      result.push({ path: [...conn.path, peer] });
-    } else {
-      continue;
-    }
+    this.d(
+      'intersects',
+      result,
+      this.path.map((h) => h.name),
+      other.path.map((h) => h.name),
+    );
+    return result;
   }
-  return result;
-};
+
+  with(hub: Hub): Connection {
+    this.path.push(hub);
+    return this;
+  }
+
+  advance(): Connection[] {
+    const result: Connection[] = [];
+    for (const peer of (this.path.at(-1) ?? this.src).peers) {
+      if (![this.src, ...this.path].includes(peer)) {
+        result.push(Connection.from(this).with(peer));
+      }
+    }
+    return result;
+  }
+
+  finished(): boolean {
+    return this.path.at(-1) === this.dest;
+  }
+
+  static from(other: Connection): Connection {
+    return new Connection({
+      ...other,
+      path: [...other.path],
+    });
+  }
+}
 
 class Network {
   private readonly d = debug('network');
   hubs: Hub[] = [];
 
   uniqueConns(a: Hub, b: Hub): Connection[] {
-    const result: Connection[] = [];
-    const conns: Connection[] = a.peers.map((h) => ({
-      variations: 1,
-      path: [h],
-    }));
+    const dUniqueConns = debug('uniqueConns');
+    dUniqueConns(a.name, b.name);
+    const finished: Connection[] = [];
+    const conns: Connection[] = [
+      new Connection({
+        src: a,
+        dest: b,
+        path: [],
+      }),
+    ];
+
     let conn = conns.shift();
     while (conn) {
-      const newConns = advance(conn, conns);
-      for (const complete of newConns.filter((c) => c.path[-1] === b)) {
-        this.d(
-          'complete',
-          complete.path.map((h) => h.name),
-        );
-        result.push(complete);
-      }
-      for (const conn of newConns.filter((c) => c.path[-1] !== b)) {
-        this.d(
-          'new conn',
-          conn.path.map((h) => h.name),
-        );
-        conns.push(conn);
+      for (const newConn of conn
+        .advance()
+        .filter((newConn) => finished.every((c) => !newConn.intercects(c)))) {
+        if (newConn.finished()) {
+          dUniqueConns(
+            'finished',
+            newConn.path.map((h) => h.name),
+          );
+          finished.push(newConn);
+        } else {
+          dUniqueConns(
+            'new unique conn',
+            newConn.path.map((h) => h.name),
+          );
+          conns.push(newConn);
+        }
       }
       conn = conns.shift();
     }
 
-    return result;
+    dUniqueConns(
+      a.name,
+      b.name,
+      'connections',
+      finished.map((c) => c.path.map((h) => h.name)),
+    );
+    this.d('sameGroup', a.name, b.name, `(${finished.length} conns)`);
+    return finished;
   }
 }
 
@@ -96,9 +148,25 @@ const main = async () => {
   const dMain = debug('main');
   const network = await parseNetwork();
 
-  const conns = network.uniqueConns(network.hubs[0], network.hubs[1]);
+  const rootA = network.hubs[0].name;
+  const groupA = network.hubs.filter((h) => h.name === rootA);
 
-  dMain(conns);
+  const groupB: Hub[] = [];
+  for (const candidate of network.hubs.filter((h) => h.name !== rootA)) {
+    if (network.uniqueConns(groupA[0], candidate).length > 3) {
+      dMain('same group', rootA, candidate.name);
+      groupA.push(candidate);
+    } else {
+      dMain('other group', rootA, candidate.name);
+      groupB.push(candidate);
+    }
+  }
+
+  dMain({
+    groupA: groupA.map((h) => h.name),
+    groupB: groupB.map((h) => h.name),
+    result: groupA.length * groupB.length,
+  });
 };
 
 if (require.main === module) {
