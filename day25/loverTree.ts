@@ -1,6 +1,8 @@
 import debug from 'debug';
 import { Hub } from './hub';
+
 type Branch = Hub[];
+type ReachDetails = { source: Set<Branch>; lover: Set<Branch> };
 
 const tip = (branch: Branch): Hub => {
   const tip = branch.at(-1);
@@ -134,5 +136,90 @@ export class LoverTree {
     });
 
     return growths.size > 0;
+  }
+
+  directContacts(): Map<Branch, Branch[]> {
+    const dDirectContacts = debug('tree:directContacts');
+
+    const result = new Map<Branch, Branch[]>();
+    if (this.root.peers.includes(this.lover.root)) {
+      dDirectContacts('Rejoice, for the roots are neighbours!');
+      result.set([this.root], [[this.lover.root]]);
+    }
+    for (const branch of this.branches) {
+      for (const peer of tip(branch).peers) {
+        for (const loverBranch of this.lover.branches) {
+          if (loverBranch.includes(peer)) {
+            dDirectContacts(
+              'branch',
+              branch.map((h) => h.name),
+              'can touch branch',
+              peer.name,
+              'in',
+              loverBranch.map((h) => h.name),
+            );
+            const val = result.get(branch);
+            if (val) {
+              val.push(loverBranch);
+            } else {
+              result.set(branch, [loverBranch]);
+            }
+          }
+        }
+      }
+    }
+
+    dDirectContacts(
+      'result',
+      [...result.entries()].map(([branch, contacts]) => ({
+        branch: branch.map((h) => h.name),
+        contacts: contacts.map((b) => `[ ${b.map((h) => h.name).join(', ')} ]`),
+      })),
+    );
+    return result;
+  }
+
+  meetingPoints(): Map<Hub, ReachDetails> {
+    const dMeetingPoints = debug('tree:meetingPoints');
+    const points = new Map<Hub, ReachDetails>();
+    for (const peer of this.root.peers) {
+      for (const loverPeer of this.lover.root.peers) {
+        if (peer === loverPeer) {
+          dMeetingPoints(
+            `Rejoice, as the roots have a common peer! ${peer.name}`,
+          );
+          points.set(peer, {
+            source: new Set([[this.root]]),
+            lover: new Set([[this.lover.root]]),
+          });
+        }
+      }
+    }
+    for (const branch of this.branches) {
+      for (const loverBranch of this.lover.branches) {
+        for (const peer of tip(branch).peers) {
+          if (tip(loverBranch).peers.includes(peer)) {
+            const point = points.get(peer);
+            if (!point) {
+              const val = {
+                source: new Set([branch]),
+                lover: new Set([loverBranch]),
+              };
+              points.set(peer, val);
+            } else {
+              point.source.add(branch);
+              point.lover.add(loverBranch);
+            }
+          }
+        }
+      }
+    }
+    for (const [hub, details] of points.entries()) {
+      dMeetingPoints(hub.name, {
+        source: [...details.source.keys()].map((b) => b.map((h) => h.name)),
+        lover: [...details.lover.keys()].map((b) => b.map((h) => h.name)),
+      });
+    }
+    return points;
   }
 }

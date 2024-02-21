@@ -78,6 +78,9 @@ const main = async () => {
       );
     }
   }
+
+  source.directContacts();
+  source.meetingPoints();
 };
 
 if (require.main === module) {
