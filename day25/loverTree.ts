@@ -40,6 +40,23 @@ export class LoverTree {
     }
   }
 
+  existing(branch: Branch): Branch | undefined {
+    return this._branches.find(
+      (b) =>
+        JSON.stringify(b.map((h) => h.name)) ===
+        JSON.stringify(branch.map((h) => h.name)),
+    );
+  }
+
+  newBranch(branch: Branch): Branch {
+    const existing = this.existing(branch);
+    if (!existing) {
+      this._branches.push(branch);
+      return branch;
+    }
+    return existing;
+  }
+
   private set lover(lover: LoverTree) {
     this._lover = lover;
   }
@@ -52,7 +69,7 @@ export class LoverTree {
     if (!this._branches.length) {
       for (const peer of this.root.peers) {
         if (![this.lover.root, ...this.lover.root.peers].includes(peer)) {
-          this._branches.push([this.root, peer]);
+          this.newBranch([this.root, peer]);
         }
       }
     }
@@ -123,7 +140,7 @@ export class LoverTree {
             'also grew',
             hub.name,
           );
-          this._branches.push([...orig, hub]);
+          this.newBranch([...orig, hub]);
         }
       }
     }
@@ -138,13 +155,20 @@ export class LoverTree {
     return growths.size > 0;
   }
 
+  /**
+   * For each branch in source tree,
+   * all the lover branches that are just a touch away.
+   *
+   */
   directContacts(): Map<Branch, Branch[]> {
     const dDirectContacts = debug('tree:directContacts');
 
     const result = new Map<Branch, Branch[]>();
     if (this.root.peers.includes(this.lover.root)) {
       dDirectContacts('Rejoice, for the roots are neighbours!');
-      result.set([this.root], [[this.lover.root]]);
+      const rootBranch = this.newBranch([this.root]);
+      const loverRootBranch = this.lover.newBranch([this.lover.root]);
+      result.set(rootBranch, [loverRootBranch]);
     }
     for (const branch of this.branches) {
       for (const peer of tip(branch).peers) {
@@ -179,6 +203,10 @@ export class LoverTree {
     return result;
   }
 
+  /**
+   * Every point that is reachable by both trees
+   * and the branches that could reach it.
+   */
   meetingPoints(): Map<Hub, ReachDetails> {
     const dMeetingPoints = debug('tree:meetingPoints');
     const points = new Map<Hub, ReachDetails>();
@@ -189,8 +217,8 @@ export class LoverTree {
             `Rejoice, as the roots have a common peer! ${peer.name}`,
           );
           points.set(peer, {
-            source: new Set([[this.root]]),
-            lover: new Set([[this.lover.root]]),
+            source: new Set([this.newBranch([this.root])]),
+            lover: new Set([this.lover.newBranch([this.lover.root])]),
           });
         }
       }
@@ -221,5 +249,51 @@ export class LoverTree {
       });
     }
     return points;
+  }
+
+  frequencies(params: {
+    contacts: ReturnType<LoverTree['directContacts']>;
+    meetingPoints: ReturnType<LoverTree['meetingPoints']>;
+  }): Map<Branch, number> {
+    const dFrequencies = debug('tree:frequencies');
+    const { contacts, meetingPoints } = params;
+
+    const frequencies = new Map<Branch, number>();
+
+    for (const [branch, loverBranches] of contacts.entries()) {
+      frequencies.set(
+        branch,
+        (frequencies.get(branch) ?? 0) + loverBranches.length,
+      );
+      for (const loverBranch of loverBranches) {
+        frequencies.set(loverBranch, (frequencies.get(loverBranch) ?? 0) + 1);
+      }
+    }
+
+    dFrequencies(
+      [...frequencies.entries()]
+        .sort((a, b) => a[1] - b[1])
+        .map(([b, n]) => `${b.map((h) => h.name)}: ${n}`),
+    );
+
+    // TODO: count only unique counterparts. Now counting again for every meeting point.
+    for (const { source, lover } of meetingPoints.values()) {
+      for (const branch of source.keys()) {
+        frequencies.set(branch, (frequencies.get(branch) ?? 0) + lover.size);
+      }
+      for (const branch of lover.keys()) {
+        frequencies.set(branch, (frequencies.get(branch) ?? 0) + source.size);
+      }
+    }
+
+    dFrequencies([...frequencies.keys()].map((b) => b.map((h) => h.name)));
+
+    dFrequencies(
+      [...frequencies.entries()]
+        .sort((a, b) => a[1] - b[1])
+        .map(([b, n]) => `${b.map((h) => h.name)}: ${n}`),
+    );
+
+    return new Map<Branch, number>();
   }
 }

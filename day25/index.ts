@@ -79,8 +79,22 @@ const main = async () => {
     }
   }
 
-  source.directContacts();
-  source.meetingPoints();
+  const result: { source: Hub[]; lover: Hub[] }[] = [];
+  const contacts = source.directContacts();
+  for (const [sourceBranch, loverBranches] of contacts) {
+    const rootBranch = source.existing([source.root]);
+    const loverRootBranch = lover.existing([lover.root]);
+    for (const loverBranch of loverBranches) {
+      if (sourceBranch === rootBranch && loverBranch === loverRootBranch) {
+        result.push({ source: sourceBranch, lover: loverBranch });
+      }
+    }
+  }
+  const meetingPoints = source.meetingPoints();
+  source.frequencies({
+    contacts,
+    meetingPoints,
+  });
 };
 
 if (require.main === module) {
