@@ -10,6 +10,8 @@ const tip = (branch: Branch): Hub => {
   return tip;
 };
 
+const printBranch = (b: Branch): string => `[${b.map((h) => h.name)}]`;
+
 /**
  * A LoverTree is a magical tree that grows in pairs.
  * It's the garden elfs favourite tree species.
@@ -156,19 +158,20 @@ export class LoverTree {
   }
 
   /**
-   * For each branch in source tree,
+   * For each branch in either tree,
    * all the lover branches that are just a touch away.
    *
    */
-  directContacts(): Map<Branch, Branch[]> {
+  directContacts(): Map<Branch, Set<Branch>> {
     const dDirectContacts = debug('tree:directContacts');
 
-    const result = new Map<Branch, Branch[]>();
+    const result = new Map<Branch, Set<Branch>>();
     if (this.root.peers.includes(this.lover.root)) {
       dDirectContacts('Rejoice, for the roots are neighbours!');
       const rootBranch = this.newBranch([this.root]);
       const loverRootBranch = this.lover.newBranch([this.lover.root]);
-      result.set(rootBranch, [loverRootBranch]);
+      result.set(rootBranch, new Set([loverRootBranch]));
+      result.set(loverRootBranch, new Set([rootBranch]));
     }
     for (const branch of this.branches) {
       for (const peer of tip(branch).peers) {
@@ -177,16 +180,22 @@ export class LoverTree {
             dDirectContacts(
               'branch',
               branch.map((h) => h.name),
-              'can touch branch',
+              'can touch',
               peer.name,
               'in',
               loverBranch.map((h) => h.name),
             );
-            const val = result.get(branch);
-            if (val) {
-              val.push(loverBranch);
-            } else {
-              result.set(branch, [loverBranch]);
+            for (const [current, counterpart] of [
+              [branch, loverBranch],
+              [loverBranch, branch],
+            ]) {
+              dDirectContacts(printBranch(current), printBranch(counterpart));
+              const val = result.get(current);
+              if (val) {
+                val.add(counterpart);
+              } else {
+                result.set(current, new Set([counterpart]));
+              }
             }
           }
         }
@@ -196,8 +205,8 @@ export class LoverTree {
     dDirectContacts(
       'result',
       [...result.entries()].map(([branch, contacts]) => ({
-        branch: branch.map((h) => h.name),
-        contacts: contacts.map((b) => `[ ${b.map((h) => h.name).join(', ')} ]`),
+        branch: printBranch(branch),
+        contacts: [...contacts].map((b) => printBranch(b)),
       })),
     );
     return result;
@@ -206,6 +215,7 @@ export class LoverTree {
   /**
    * Every point that is reachable by both trees
    * and the branches that could reach it.
+   * TODO: fix, collecting roots and is wrong
    */
   meetingPoints(): Map<Hub, ReachDetails> {
     const dMeetingPoints = debug('tree:meetingPoints');
@@ -251,49 +261,69 @@ export class LoverTree {
     return points;
   }
 
-  frequencies(params: {
+  options(params: {
     contacts: ReturnType<LoverTree['directContacts']>;
     meetingPoints: ReturnType<LoverTree['meetingPoints']>;
-  }): Map<Branch, number> {
+  }): Map<Branch, Set<Branch>> {
     const dFrequencies = debug('tree:frequencies');
     const { contacts, meetingPoints } = params;
 
-    const frequencies = new Map<Branch, number>();
+    const options = new Map<Branch, Set<Branch>>();
 
     for (const [branch, loverBranches] of contacts.entries()) {
-      frequencies.set(
-        branch,
-        (frequencies.get(branch) ?? 0) + loverBranches.length,
-      );
       for (const loverBranch of loverBranches) {
-        frequencies.set(loverBranch, (frequencies.get(loverBranch) ?? 0) + 1);
+        const branchOptions = options.get(branch);
+        if (!branchOptions) {
+          options.set(branch, new Set<Branch>([loverBranch]));
+        } else {
+          branchOptions.add(loverBranch);
+        }
+
+        const loverBranchOptions = options.get(loverBranch);
+        if (!loverBranchOptions) {
+          options.set(branch, new Set<Branch>([branch]));
+        } else {
+          branchOptions?.add(loverBranch);
+        }
       }
     }
 
     dFrequencies(
-      [...frequencies.entries()]
-        .sort((a, b) => a[1] - b[1])
-        .map(([b, n]) => `${b.map((h) => h.name)}: ${n}`),
+      [...options.entries()]
+        .sort((a, b) => a[1].size - b[1].size)
+        .map(
+          ([b, s]) =>
+            `${b.map((h) => h.name)}: ${[...s].map((b) =>
+              b.map((h) => h.name),
+            )}`,
+        ),
     );
 
     // TODO: count only unique counterparts. Now counting again for every meeting point.
     for (const { source, lover } of meetingPoints.values()) {
       for (const branch of source.keys()) {
-        frequencies.set(branch, (frequencies.get(branch) ?? 0) + lover.size);
+        options.set(
+          branch,
+          new Set([...(options.get(branch) ?? new Set<Branch>()), ...lover]),
+        );
       }
       for (const branch of lover.keys()) {
-        frequencies.set(branch, (frequencies.get(branch) ?? 0) + source.size);
+        options.set(
+          branch,
+          new Set([...(options.get(branch) ?? new Set<Branch>()), ...source]),
+        );
       }
     }
 
-    dFrequencies([...frequencies.keys()].map((b) => b.map((h) => h.name)));
-
     dFrequencies(
-      [...frequencies.entries()]
-        .sort((a, b) => a[1] - b[1])
-        .map(([b, n]) => `${b.map((h) => h.name)}: ${n}`),
+      [...options.entries()]
+        .sort((a, b) => a[1].size - b[1].size)
+        .map(
+          ([b, s]) =>
+            `${b.map((h) => h.name)}: ${[...s].map((b) => printBranch(b))}`,
+        ),
     );
 
-    return new Map<Branch, number>();
+    return options;
   }
 }

@@ -91,7 +91,7 @@ const main = async () => {
     }
   }
   const meetingPoints = source.meetingPoints();
-  source.frequencies({
+  source.options({
     contacts,
     meetingPoints,
   });
