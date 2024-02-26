@@ -1,7 +1,7 @@
 import debug from 'debug';
 import { Hub } from './hub';
 
-type Branch = Hub[];
+export type Branch = Hub[];
 type ReachDetails = { source: Set<Branch>; lover: Set<Branch> };
 
 const tip = (branch: Branch): Hub => {
@@ -10,7 +10,7 @@ const tip = (branch: Branch): Hub => {
   return tip;
 };
 
-const printBranch = (b: Branch): string => `[${b.map((h) => h.name)}]`;
+export const printBranch = (b: Branch): string => `[${b.map((h) => h.name)}]`;
 
 /**
  * A LoverTree is a magical tree that grows in pairs.
@@ -265,7 +265,7 @@ export class LoverTree {
     contacts: ReturnType<LoverTree['directContacts']>;
     meetingPoints: ReturnType<LoverTree['meetingPoints']>;
   }): Map<Branch, Set<Branch>> {
-    const dFrequencies = debug('tree:frequencies');
+    const dOptions = debug('tree:options');
     const { contacts, meetingPoints } = params;
 
     const options = new Map<Branch, Set<Branch>>();
@@ -278,28 +278,17 @@ export class LoverTree {
         } else {
           branchOptions.add(loverBranch);
         }
-
-        const loverBranchOptions = options.get(loverBranch);
-        if (!loverBranchOptions) {
-          options.set(branch, new Set<Branch>([branch]));
-        } else {
-          branchOptions?.add(loverBranch);
-        }
       }
     }
 
-    dFrequencies(
+    dOptions(
       [...options.entries()]
         .sort((a, b) => a[1].size - b[1].size)
         .map(
-          ([b, s]) =>
-            `${b.map((h) => h.name)}: ${[...s].map((b) =>
-              b.map((h) => h.name),
-            )}`,
+          ([b, s]) => `${printBranch(b)}: ${[...s].map((b) => printBranch(b))}`,
         ),
     );
 
-    // TODO: count only unique counterparts. Now counting again for every meeting point.
     for (const { source, lover } of meetingPoints.values()) {
       for (const branch of source.keys()) {
         options.set(
@@ -315,7 +304,7 @@ export class LoverTree {
       }
     }
 
-    dFrequencies(
+    dOptions(
       [...options.entries()]
         .sort((a, b) => a[1].size - b[1].size)
         .map(
