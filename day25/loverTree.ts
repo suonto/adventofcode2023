@@ -10,7 +10,7 @@ const tip = (branch: Branch): Hub => {
   return tip;
 };
 
-export const printBranch = (b: Branch): string => `[${b.map((h) => h.name)}]`;
+export const printPath = (b: Branch): string => `[${b.map((h) => h.name)}]`;
 
 /**
  * A LoverTree is a magical tree that grows in pairs.
@@ -33,6 +33,8 @@ export const printBranch = (b: Branch): string => `[${b.map((h) => h.name)}]`;
 export class LoverTree {
   private _lover: LoverTree;
   readonly root: Hub;
+  readonly connections: Hub[][] = [];
+  readonly connected = new Set<Hub>();
   private readonly _branches: Branch[] = [];
 
   private constructor(params: { root: Hub; lover?: LoverTree }) {
@@ -40,6 +42,35 @@ export class LoverTree {
     if (params.lover) {
       this._lover = params.lover;
     }
+  }
+
+  connect(hubs: Hub[]): void {
+    const dConnect = debug('tree:connect');
+    if (hubs.length < 2) {
+      throw new Error(`Invalid connection of ${hubs.length} hubs`);
+    } else if (this.root !== hubs.at(0) || this.lover.root !== hubs.at(-1)) {
+      throw new Error(
+        `Invalid start (${hubs.at(0)?.name}) or end ${hubs.at(-1)?.name}`,
+      );
+    } else if (new Set(hubs).size < hubs.length) {
+      throw new Error('Invalid connection; contains duplicate hubs.');
+    }
+    const via = hubs.filter((h) => h !== this.root && h !== this.lover.root);
+    for (const hub of via) {
+      if (this.connected.has(hub)) {
+        throw new Error(`Hub ${hub.name} is already connected.`);
+      }
+    }
+    if (!this.connections.every((c) => printPath(c) !== printPath(hubs))) {
+      throw new Error(`Connection ${printPath(hubs)} already exists.`);
+    }
+    via.forEach((hub) => {
+      this.connected.add(hub);
+      this.lover.connected.add(hub);
+    });
+    dConnect('New connection', printPath(hubs));
+    this.connections.push(hubs);
+    this.lover.connections.push([...hubs].reverse());
   }
 
   existing(branch: Branch): Branch | undefined {
@@ -168,10 +199,7 @@ export class LoverTree {
     const result = new Map<Branch, Set<Branch>>();
     if (this.root.peers.includes(this.lover.root)) {
       dDirectContacts('Rejoice, for the roots are neighbours!');
-      const rootBranch = this.newBranch([this.root]);
-      const loverRootBranch = this.lover.newBranch([this.lover.root]);
-      result.set(rootBranch, new Set([loverRootBranch]));
-      result.set(loverRootBranch, new Set([rootBranch]));
+      this.connect([this.root, this.lover.root]);
     }
     for (const branch of this.branches) {
       for (const peer of tip(branch).peers) {
@@ -189,7 +217,6 @@ export class LoverTree {
               [branch, loverBranch],
               [loverBranch, branch],
             ]) {
-              dDirectContacts(printBranch(current), printBranch(counterpart));
               const val = result.get(current);
               if (val) {
                 val.add(counterpart);
@@ -205,8 +232,8 @@ export class LoverTree {
     dDirectContacts(
       'result',
       [...result.entries()].map(([branch, contacts]) => ({
-        branch: printBranch(branch),
-        contacts: [...contacts].map((b) => printBranch(b)),
+        branch: printPath(branch),
+        contacts: [...contacts].map((b) => printPath(b)),
       })),
     );
     return result;
@@ -221,22 +248,21 @@ export class LoverTree {
     const dMeetingPoints = debug('tree:meetingPoints');
     const points = new Map<Hub, ReachDetails>();
     for (const peer of this.root.peers) {
-      for (const loverPeer of this.lover.root.peers) {
-        if (peer === loverPeer) {
-          dMeetingPoints(
-            `Rejoice, as the roots have a common peer! ${peer.name}`,
-          );
-          points.set(peer, {
-            source: new Set([this.newBranch([this.root])]),
-            lover: new Set([this.lover.newBranch([this.lover.root])]),
-          });
-        }
+      const match = this.lover.root.peers.find((h) => h === peer);
+      if (match) {
+        dMeetingPoints(
+          `Rejoice, as the roots have a common peer! ${peer.name}`,
+        );
+        this.connect([this.root, peer, this.lover.root]);
       }
     }
     for (const branch of this.branches) {
       for (const loverBranch of this.lover.branches) {
         for (const peer of tip(branch).peers) {
-          if (tip(loverBranch).peers.includes(peer)) {
+          if (
+            !this.connected.has(peer) &&
+            tip(loverBranch).peers.includes(peer)
+          ) {
             const point = points.get(peer);
             if (!point) {
               const val = {
@@ -284,12 +310,10 @@ export class LoverTree {
     dOptions(
       [...options.entries()]
         .sort((a, b) => a[1].size - b[1].size)
-        .map(
-          ([b, s]) => `${printBranch(b)}: ${[...s].map((b) => printBranch(b))}`,
-        ),
+        .map(([b, s]) => `${printPath(b)}: ${[...s].map((b) => printPath(b))}`),
     );
 
-    for (const { source, lover } of meetingPoints.values()) {
+    for (const [point, { source, lover }] of meetingPoints.entries()) {
       for (const branch of source.keys()) {
         options.set(
           branch,
@@ -306,10 +330,10 @@ export class LoverTree {
 
     dOptions(
       [...options.entries()]
-        .sort((a, b) => a[1].size - b[1].size)
+        .sort((a, b) => printPath(a[0]).localeCompare(printPath(b[0])))
         .map(
           ([b, s]) =>
-            `${b.map((h) => h.name)}: ${[...s].map((b) => printBranch(b))}`,
+            `${b.map((h) => h.name)}: ${[...s].map((b) => printPath(b))}`,
         ),
     );
 
