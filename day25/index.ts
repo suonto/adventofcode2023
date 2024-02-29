@@ -113,6 +113,15 @@ const connect = (params: {
 
   const toBeDeleted: Branch[] = [best, bestOpt];
   for (const [branch, opts] of options.entries()) {
+    if (!branch.every((h) => !sourceTree.connected.has(h))) {
+      options.delete(branch);
+      continue;
+    }
+    for (const opt of opts.keys()) {
+      if (!opt.every((h) => !sourceTree.connected.has(h))) {
+        opts.delete(opt);
+      }
+    }
     opts.delete(best);
     opts.delete(bestOpt);
     if (!opts.size) {
@@ -177,7 +186,15 @@ const connections = (params: { sourceRoot: Hub; loverRoot: Hub }): Hub[][] => {
   }
 
   const contacts = source.directContacts();
+  dConnections(
+    'after contacts',
+    source.connections.map((c) => printPath(c)),
+  );
   const meetingPoints = source.meetingPoints();
+  dConnections(
+    'after points',
+    source.connections.map((c) => printPath(c)),
+  );
   const options = source.options({
     contacts,
     meetingPoints,
@@ -188,7 +205,10 @@ const connections = (params: { sourceRoot: Hub; loverRoot: Hub }): Hub[][] => {
     connection = connect({ sourceTree: source, options });
   }
 
-  dConnections(source.connections.map((c) => printPath(c)));
+  dConnections(
+    'final',
+    source.connections.map((c) => printPath(c)),
+  );
   return source.connections;
 };
 
@@ -196,7 +216,7 @@ const main = async () => {
   const dMain = debug('main');
   const network = await parseNetwork();
 
-  const groupARoot = network.getHub({ name: 'jqt' });
+  const groupARoot = network.getHub({ name: 'ckf' });
 
   const groupA = [groupARoot];
   const groupB: Hub[] = [];
@@ -216,7 +236,21 @@ const main = async () => {
       'goes to',
       sameGroup ? 'A' : 'B',
     );
+    if (sameGroup) {
+      groupA.push(other);
+    } else {
+      groupB.push(other);
+    }
   }
+
+  dMain(
+    'Group A',
+    groupA.map((h) => h.name),
+  );
+  dMain(
+    'Group B',
+    groupB.map((h) => h.name),
+  );
 };
 
 if (require.main === module) {

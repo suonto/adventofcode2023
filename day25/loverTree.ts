@@ -58,7 +58,11 @@ export class LoverTree {
     const via = hubs.filter((h) => h !== this.root && h !== this.lover.root);
     for (const hub of via) {
       if (this.connected.has(hub)) {
-        throw new Error(`Hub ${hub.name} is already connected.`);
+        throw new Error(
+          `Hub ${hub.name} is already connected. Connections: ${this.connections
+            .map((c) => printPath(c))
+            .join(', ')}`,
+        );
       }
     }
     if (!this.connections.every((c) => printPath(c) !== printPath(hubs))) {
@@ -256,13 +260,19 @@ export class LoverTree {
         this.connect([this.root, peer, this.lover.root]);
       }
     }
-    for (const branch of this.branches) {
-      for (const loverBranch of this.lover.branches) {
+    const eligibleLoverBranches = this.lover.branches.filter((b) =>
+      b.every((h) => !this.connected.has(h)),
+    );
+    for (const branch of this.branches.filter((b) =>
+      b.every((h) => !this.connected.has(h)),
+    )) {
+      for (const loverBranch of eligibleLoverBranches) {
         for (const peer of tip(branch).peers) {
           if (
             !this.connected.has(peer) &&
             tip(loverBranch).peers.includes(peer)
           ) {
+            dMeetingPoints(printPath(branch), printPath(loverBranch));
             const point = points.get(peer);
             if (!point) {
               const val = {
@@ -293,10 +303,13 @@ export class LoverTree {
   }): Map<Branch, Set<Branch>> {
     const dOptions = debug('tree:options');
     const { contacts, meetingPoints } = params;
+    const filteredContacts = [...contacts.entries()].filter((e) =>
+      [e[0], ...e[1]].every((b) => b.every((h) => !this.connected.has(h))),
+    );
 
     const options = new Map<Branch, Set<Branch>>();
 
-    for (const [branch, loverBranches] of contacts.entries()) {
+    for (const [branch, loverBranches] of filteredContacts) {
       for (const loverBranch of loverBranches) {
         const branchOptions = options.get(branch);
         if (!branchOptions) {
