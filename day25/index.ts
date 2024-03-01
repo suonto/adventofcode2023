@@ -220,16 +220,19 @@ const main = async () => {
   const network = await parseNetwork();
 
   const groupARoot = network.getHub({ name: 'jqt' });
+  groupARoot.group = 'A';
+  const others = [...network.hubs.filter((h) => h !== groupARoot).entries()];
 
   const groupA = [groupARoot];
   const groupB: Hub[] = [];
-  for (const other of network.hubs.filter((h) => h !== groupARoot)) {
-    dMain(groupARoot.name, '->', other.name);
+  for (const [i, other] of others) {
+    dMain(`${i}/${others.length}`, groupARoot.name, '->', other.name);
     const conns = connections({
       sourceRoot: groupARoot,
       loverRoot: other,
     });
     const sameGroup = conns.length > 3;
+    other.group = sameGroup ? 'A' : 'B';
     dMain(
       groupARoot.name,
       '->',
@@ -255,6 +258,15 @@ const main = async () => {
     'Group B',
     groupB.map((h) => h.name),
   );
+
+  for (const aHub of groupA) {
+    const bPeer = aHub.peers.find((p) => p.group === 'B');
+    if (bPeer) {
+      dMain(aHub.name, '/', bPeer.name);
+    }
+  }
+
+  dMain('Product', groupA.length * groupB.length);
 };
 
 if (require.main === module) {

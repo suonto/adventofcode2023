@@ -4,6 +4,7 @@ export class Hub {
   private readonly d = debug('hub');
   private readonly dAddConnections = debug('hub:addConnections');
   name: string;
+  group?: 'A' | 'B';
   peers: Hub[] = [];
 
   constructor(name: string) {
