@@ -35,6 +35,7 @@ export class LoverTree {
   readonly root: Hub;
   readonly connections: Hub[][] = [];
   readonly connected = new Set<Hub>();
+  readonly occupies = new Set<Hub>();
   private readonly _branches: Branch[] = [];
 
   private constructor(params: { root: Hub; lover?: LoverTree }) {
@@ -88,6 +89,7 @@ export class LoverTree {
   newBranch(branch: Branch): Branch {
     const existing = this.existing(branch);
     if (!existing) {
+      branch.forEach((h) => this.occupies.add(h));
       this._branches.push(branch);
       return branch;
     }
@@ -129,10 +131,6 @@ export class LoverTree {
     this.lover = lover;
   }
 
-  occupies(hub: Hub): boolean {
-    return new Set<Hub>([this.root, ...this.branches.flat()]).has(hub);
-  }
-
   /**
    * @returns for each hub in reach, branches that can reach it by growing
    */
@@ -141,7 +139,7 @@ export class LoverTree {
 
     for (const branch of this.branches) {
       for (const peer of tip(branch).peers) {
-        if (!this.occupies(peer)) {
+        if (!this.occupies.has(peer)) {
           reach.set(peer, [...(reach.get(peer) ?? []), branch]);
         }
       }
@@ -157,7 +155,7 @@ export class LoverTree {
     for (const [hub, branches] of reach.entries()) {
       if (
         branches.length === 1 &&
-        !this.lover.occupies(hub) &&
+        !this.lover.occupies.has(hub) &&
         !loverReach.has(hub)
       ) {
         const branch = branches.at(0)!;
@@ -169,6 +167,7 @@ export class LoverTree {
             'grew',
             hub.name,
           );
+          this.occupies.add(hub);
           branch.push(hub);
         } else {
           const orig = branch.slice(0, -1);

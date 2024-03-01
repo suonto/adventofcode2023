@@ -151,49 +151,52 @@ const connectScores = (
 const connections = (params: { sourceRoot: Hub; loverRoot: Hub }): Hub[][] => {
   const dConnections = debug('connections');
   const { sourceRoot, loverRoot } = params;
+  dConnections('Connections for', sourceRoot.name, '->', loverRoot.name);
   const { source, lover } = LoverTree.createPair({
     root: sourceRoot,
     loverRoot: loverRoot,
   });
 
-  dConnections(
-    'source branches',
-    source.branches.map((b) => b.map((h) => h.name)),
-  );
-  dConnections(
-    'lover branches',
-    lover.branches.map((b) => b.map((h) => h.name)),
-  );
+  // dConnections(
+  //   'source branches',
+  //   source.branches.map((b) => b.map((h) => h.name)),
+  // );
+  // dConnections(
+  //   'lover branches',
+  //   lover.branches.map((b) => b.map((h) => h.name)),
+  // );
   const growthStatuses = { source: true, lover: true };
   while (
     !Object.values(growthStatuses).every((growthStatus) => !growthStatus)
   ) {
     if (growthStatuses.source) growthStatuses.source = source.grow();
     if (growthStatuses.source) {
-      dConnections(
-        'source branches',
-        source.branches.map((b) => b.map((h) => h.name)),
-      );
+      // dConnections(
+      //   'source branches',
+      //   source.branches.map((b) => b.map((h) => h.name)),
+      // );
     }
 
     if (growthStatuses.lover) growthStatuses.lover = lover.grow();
     if (growthStatuses.lover) {
-      dConnections(
-        'lover branches',
-        lover.branches.map((b) => b.map((h) => h.name)),
-      );
+      // dConnections(
+      //   'lover branches',
+      //   lover.branches.map((b) => b.map((h) => h.name)),
+      // );
     }
   }
+
+  dConnections('after growth');
 
   const contacts = source.directContacts();
   dConnections(
     'after contacts',
-    source.connections.map((c) => printPath(c)),
+    // source.connections.map((c) => printPath(c)),
   );
   const meetingPoints = source.meetingPoints();
   dConnections(
     'after points',
-    source.connections.map((c) => printPath(c)),
+    // source.connections.map((c) => printPath(c)),
   );
   const options = source.options({
     contacts,
@@ -207,7 +210,7 @@ const connections = (params: { sourceRoot: Hub; loverRoot: Hub }): Hub[][] => {
 
   dConnections(
     'final',
-    source.connections.map((c) => printPath(c)),
+    // source.connections.map((c) => printPath(c)),
   );
   return source.connections;
 };
@@ -216,7 +219,7 @@ const main = async () => {
   const dMain = debug('main');
   const network = await parseNetwork();
 
-  const groupARoot = network.getHub({ name: 'ckf' });
+  const groupARoot = network.getHub({ name: 'jqt' });
 
   const groupA = [groupARoot];
   const groupB: Hub[] = [];
@@ -230,6 +233,7 @@ const main = async () => {
     dMain(
       groupARoot.name,
       '->',
+      other.name,
       conns.length,
       'conns.',
       other.name,
