@@ -157,32 +157,32 @@ const connections = (params: { sourceRoot: Hub; loverRoot: Hub }): Hub[][] => {
     loverRoot: loverRoot,
   });
 
-  // dConnections(
-  //   'source branches',
-  //   source.branches.map((b) => b.map((h) => h.name)),
-  // );
-  // dConnections(
-  //   'lover branches',
-  //   lover.branches.map((b) => b.map((h) => h.name)),
-  // );
+  dConnections(
+    'source branches',
+    source.branches.map((b) => b.map((h) => h.name)),
+  );
+  dConnections(
+    'lover branches',
+    lover.branches.map((b) => b.map((h) => h.name)),
+  );
   const growthStatuses = { source: true, lover: true };
   while (
     !Object.values(growthStatuses).every((growthStatus) => !growthStatus)
   ) {
     if (growthStatuses.source) growthStatuses.source = source.grow();
     if (growthStatuses.source) {
-      // dConnections(
-      //   'source branches',
-      //   source.branches.map((b) => b.map((h) => h.name)),
-      // );
+      dConnections(
+        'source branches',
+        source.branches.map((b) => b.map((h) => h.name)),
+      );
     }
 
     if (growthStatuses.lover) growthStatuses.lover = lover.grow();
     if (growthStatuses.lover) {
-      // dConnections(
-      //   'lover branches',
-      //   lover.branches.map((b) => b.map((h) => h.name)),
-      // );
+      dConnections(
+        'lover branches',
+        lover.branches.map((b) => b.map((h) => h.name)),
+      );
     }
   }
 
@@ -191,12 +191,12 @@ const connections = (params: { sourceRoot: Hub; loverRoot: Hub }): Hub[][] => {
   const contacts = source.directContacts();
   dConnections(
     'after contacts',
-    // source.connections.map((c) => printPath(c)),
+    source.connections.map((c) => printPath(c)),
   );
   const meetingPoints = source.meetingPoints();
   dConnections(
     'after points',
-    // source.connections.map((c) => printPath(c)),
+    source.connections.map((c) => printPath(c)),
   );
   const options = source.options({
     contacts,
@@ -210,7 +210,7 @@ const connections = (params: { sourceRoot: Hub; loverRoot: Hub }): Hub[][] => {
 
   dConnections(
     'final',
-    // source.connections.map((c) => printPath(c)),
+    source.connections.map((c) => printPath(c)),
   );
   return source.connections;
 };
@@ -219,56 +219,61 @@ const main = async () => {
   const dMain = debug('main');
   const network = await parseNetwork();
 
-  const groupARoot = network.getHub({ name: 'jqt' });
-  groupARoot.group = 'A';
-  const others = [...network.hubs.filter((h) => h !== groupARoot).entries()];
+  const groupARoot = network.getHub({ name: 'lsr' });
+  const other = network.getHub({ name: 'jqt' });
+  const conns = connections({
+    sourceRoot: groupARoot,
+    loverRoot: other,
+  });
+  // groupARoot.group = 'A';
+  // const others = [...network.hubs.filter((h) => h !== groupARoot).entries()];
 
-  const groupA = [groupARoot];
-  const groupB: Hub[] = [];
-  for (const [i, other] of others) {
-    dMain(`${i}/${others.length}`, groupARoot.name, '->', other.name);
-    const conns = connections({
-      sourceRoot: groupARoot,
-      loverRoot: other,
-    });
-    const sameGroup = conns.length > 3;
-    other.group = sameGroup ? 'A' : 'B';
-    dMain(
-      groupARoot.name,
-      '->',
-      other.name,
-      conns.length,
-      'conns.',
-      other.name,
-      'goes to',
-      sameGroup ? 'A' : 'B',
-    );
-    if (sameGroup) {
-      groupA.push(other);
-    } else {
-      groupB.push(other);
-    }
-  }
+  // const groupA = [groupARoot];
+  // const groupB: Hub[] = [];
+  // for (const [i, other] of others) {
+  //   dMain(`${i}/${others.length}`, groupARoot.name, '->', other.name);
+  //   const conns = connections({
+  //     sourceRoot: groupARoot,
+  //     loverRoot: other,
+  //   });
+  //   const sameGroup = conns.length > 3;
+  //   other.group = sameGroup ? 'A' : 'B';
+  //   dMain(
+  //     groupARoot.name,
+  //     '->',
+  //     other.name,
+  //     conns.length,
+  //     'conns.',
+  //     other.name,
+  //     'goes to',
+  //     sameGroup ? 'A' : 'B',
+  //   );
+  //   if (sameGroup) {
+  //     groupA.push(other);
+  //   } else {
+  //     groupB.push(other);
+  //   }
+  // }
 
-  dMain(
-    'Group A',
-    groupA.map((h) => h.name),
-  );
-  dMain(
-    'Group B',
-    groupB.map((h) => h.name),
-  );
+  // dMain(
+  //   'Group A',
+  //   groupA.map((h) => h.name),
+  // );
+  // dMain(
+  //   'Group B',
+  //   groupB.map((h) => h.name),
+  // );
 
-  for (const aHub of groupA) {
-    const bPeer = aHub.peers.find((p) => p.group === 'B');
-    if (bPeer) {
-      dMain(aHub.name, '/', bPeer.name);
-    }
-  }
+  // for (const aHub of groupA) {
+  //   const bPeer = aHub.peers.find((p) => p.group === 'B');
+  //   if (bPeer) {
+  //     dMain(aHub.name, '/', bPeer.name);
+  //   }
+  // }
 
-  dMain('Product', groupA.length * groupB.length);
+  // dMain('Product', groupA.length * groupB.length);
 };
-
+// 518384 too low
 if (require.main === module) {
   main();
 }
