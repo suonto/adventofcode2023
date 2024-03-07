@@ -65,6 +65,20 @@ export class LoveTree {
   }
 
   /**
+   * @returns all reachable hubs that are not yet in this tree
+   */
+  reach(): Set<Hub> {
+    const reach = new Set<Hub>();
+    for (const node of this.root.leafs()) {
+      if (!this.body.has(node.hub)) {
+        reach.add(node.hub);
+      }
+    }
+
+    return reach;
+  }
+
+  /**
    * Grow carefully without blocking branches from other trunks in this tree
    * or any branches in the lover tree.
    * Keep track of connectionOptionsCount for each TrunkNode.
@@ -87,6 +101,11 @@ export class LoveTree {
    */
   adultGrow(): boolean {
     const dGrow = debug('tree:grow:adolescent');
+    const forbidden = new Set<Hub>([
+      ...this.body,
+      ...this.lover.body,
+      // ...this.lover.reach(),
+    ]);
     return true;
   }
 }

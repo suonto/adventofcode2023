@@ -10,11 +10,31 @@ export abstract class TreeNode {
     this.hub = hub;
   }
 
+  /**
+   * @param forbidden set of nodes that are forbidden.
+   *
+   * Examples:
+   * For adolescent trees, nodes within self or lover reach are forbidden.
+   * For adult trees, nodes within self reach are only allowed if this trunk has
+   * the least options out of the trunks that can reach it.
+   */
+  abstract grow(forbidden: Set<Hub>): void;
+
   is = (hub: Hub) => this.hub === hub;
 
   eq = (other: TreeNode) => this.hub === other.hub;
 
-  abstract grow(treeNodeSet: Set<Hub>): void;
+  leafs = (): TreeNode[] => {
+    if (!this.children.length) {
+      return [this];
+    } else {
+      const result: TreeNode[] = [];
+      for (const child of this.children) {
+        result.push(...child.leafs());
+      }
+      return result;
+    }
+  };
 }
 
 export class RootNode extends TreeNode {
@@ -31,11 +51,11 @@ abstract class NonRoot extends TreeNode {
   children: BranchNode[] = [];
 
   // the hubs that can be reached and do not exist in the tree yet
-  reach(treeNodeSet: Set<Hub>): Hub[] {
+  reach(forbidden: Set<Hub>): Hub[] {
     const result: Hub[] = [];
 
     for (const hub of this.hub.peers) {
-      if (!treeNodeSet.has(hub)) {
+      if (!forbidden.has(hub)) {
         result.push(hub);
       }
     }
@@ -53,8 +73,8 @@ export class TrunkNode extends NonRoot {
     this.root = params.root;
   }
 
-  grow(treeNodeSet: Set<Hub>): void {
-    for (const hub of this.reach(treeNodeSet)) {
+  grow(forbidden: Set<Hub>): void {
+    for (const hub of this.reach(forbidden)) {
       this.children.push(new BranchNode({ trunk: this, parent: this, hub }));
     }
   }
