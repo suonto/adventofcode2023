@@ -1,3 +1,4 @@
+import debug from 'debug';
 import { Hub } from './hub';
 
 export abstract class TreeNode {
@@ -7,6 +8,7 @@ export abstract class TreeNode {
   abstract children: TreeNode[];
 
   constructor(hub: Hub) {
+    hub.connected = false;
     this.hub = hub;
   }
 
@@ -18,7 +20,16 @@ export abstract class TreeNode {
    * For adult trees, nodes within self reach are only allowed if this trunk has
    * the least options out of the trunks that can reach it.
    */
-  abstract grow(forbidden: Set<Hub>): void;
+  abstract grow(forbidden: Set<Hub>, loverReach?: Set<Hub>): void;
+
+  abstract get path(): TreeNode[];
+
+  printPath(...args: Parameters<typeof Array.prototype.slice>): string {
+    return `[${this.path
+      .map((n) => n.hub.name)
+      .slice(...args)
+      .join(', ')}]`;
+  }
 
   is = (hub: Hub) => this.hub === hub;
 
@@ -38,12 +49,23 @@ export abstract class TreeNode {
 }
 
 export class RootNode extends TreeNode {
+  private d = debug('nodes:root');
   children: TrunkNode[] = [];
 
-  grow() {
-    for (const hub of this.hub.peers) {
+  // for RootNode, the only forbidden child is lover root
+  grow(forbidden: Set<Hub>) {
+    for (const hub of this.hub.peers.filter((h) => !forbidden.has(h))) {
       this.children.push(new TrunkNode({ root: this, hub }));
     }
+    this.d(
+      this.hub.name,
+      'grew trunks',
+      this.children.map((c) => c.hub.name),
+    );
+  }
+
+  get path(): [RootNode] {
+    return [this];
   }
 }
 
@@ -65,6 +87,7 @@ abstract class NonRoot extends TreeNode {
 }
 
 export class TrunkNode extends NonRoot {
+  private d = debug('nodes:trunk');
   // Root is the very origin of the tree
   readonly root: RootNode;
 
@@ -73,16 +96,29 @@ export class TrunkNode extends NonRoot {
     this.root = params.root;
   }
 
+  leafs: () => (TrunkNode | BranchNode)[];
+
   grow(forbidden: Set<Hub>): void {
     for (const hub of this.reach(forbidden)) {
       this.children.push(new BranchNode({ trunk: this, parent: this, hub }));
     }
+    this.d(
+      this.hub.name,
+      'grew children',
+      this.children.map((c) => c.hub.name),
+    );
+  }
+
+  get path(): [RootNode, TrunkNode] {
+    return [this.root, this];
   }
 }
 
 export class BranchNode extends NonRoot {
   // Trunk is directly peered to root
   readonly trunk: TrunkNode;
+
+  private _path: [RootNode, TrunkNode, ...BranchNode[]];
 
   // Parent node
   readonly parent: TrunkNode | BranchNode;
@@ -103,5 +139,18 @@ export class BranchNode extends NonRoot {
         new BranchNode({ trunk: this.trunk, parent: this, hub }),
       );
     }
+  }
+
+  leafs: () => BranchNode[];
+
+  get path() {
+    if (this._path) return this._path;
+
+    if (this.parent instanceof BranchNode) {
+      this._path = [...this.parent.path, this];
+    } else {
+      this._path = [this.trunk.root, this.trunk, this];
+    }
+    return this._path;
   }
 }

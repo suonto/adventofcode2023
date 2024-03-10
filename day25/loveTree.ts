@@ -29,7 +29,7 @@ export const connectionToString = (conn: Connection) =>
  * Nature is so amazing. Always has a solution to everything.
  */
 export class LoveTree {
-  protected d = debug('tree');
+  protected d = debug('tree:main');
   protected _lover: LoveTree;
   readonly root: RootNode;
 
@@ -42,12 +42,7 @@ export class LoveTree {
   // protected, as LoveTrees cannot grow alone
   protected constructor(root: Hub) {
     this.root = new RootNode(root);
-    this.root.grow();
-
-    for (const trunk of this.root.children) {
-      this.body.add(trunk.hub);
-      this.connectionOptionsCounts.set(trunk, 0);
-    }
+    this.body.add(root);
   }
 
   // protected, as LoveTrees can only bind with a tree of LoveTree sub species
@@ -61,7 +56,7 @@ export class LoveTree {
   }
 
   get trunks(): TrunkNode[] {
-    return this.root.children;
+    return this.root.children.filter((t) => !t.hub.connected);
   }
 
   /**
@@ -69,9 +64,12 @@ export class LoveTree {
    */
   reach(): Set<Hub> {
     const reach = new Set<Hub>();
-    for (const node of this.root.leafs()) {
-      if (!this.body.has(node.hub)) {
-        reach.add(node.hub);
+    for (const hub of this.root
+      .leafs()
+      .map((n) => n.hub.peers)
+      .flat()) {
+      if (!this.body.has(hub)) {
+        reach.add(hub);
       }
     }
 
@@ -87,10 +85,36 @@ export class LoveTree {
    */
   adolescentGrow(): boolean {
     const dGrow = debug('tree:grow:adolescent');
+    const reach = this.reach();
+    const loverReach = this.lover.reach();
+    const forbidden = new Set([
+      ...this.body,
+      ...this.lover.body,
+      ...reach,
+      ...loverReach,
+    ]);
 
-    for (const trunk of this.connectionOptionsCounts.keys()) {
+    // TODO while growing, return connection options to these
+    const loverBodyAndReach = new Set([...this.lover.body, ...loverReach]);
+
+    dGrow(
+      'forbidden',
+      [...forbidden].map((h) => h.name),
+    );
+    let result = false;
+    for (const trunk of this.trunks) {
+      for (const leaf of trunk.leafs()) {
+        dGrow('leaf', leaf.printPath());
+        leaf.grow(forbidden);
+        for (const child of leaf.children) {
+          dGrow(child.printPath(0, -1), 'grew', child.hub.name);
+          result = true;
+          this.body.add(child.hub);
+          forbidden.add(child.hub);
+        }
+      }
     }
-    return true;
+    return result;
   }
 
   /**
@@ -112,7 +136,7 @@ export class LoveTree {
 
 export class SourceTree extends LoveTree {
   // Only the SourceTree in each pair keeps track of connections
-  readonly connections: Connection[];
+  readonly connections: Connection[] = [];
   readonly connected = new Set<Hub>();
 
   private constructor(root: Hub) {
@@ -120,9 +144,21 @@ export class SourceTree extends LoveTree {
   }
 
   static createPair(params: { source: Hub; lover: Hub }) {
-    const root = new SourceTree(params.source);
+    const source = new SourceTree(params.source);
     const lover = new LoveTree(params.lover);
-    root.bind(lover);
+    source.bind(lover);
+
+    source.root.grow(new Set([lover.root.hub]));
+    lover.root.grow(new Set([source.root.hub]));
+
+    for (const tree of [source, lover]) {
+      for (const trunk of tree.root.children) {
+        tree.body.add(trunk.hub);
+        tree.connectionOptionsCounts.set(trunk, 0);
+      }
+    }
+
+    return { source, lover };
   }
 
   private connect(connection: Connection): void {
@@ -132,24 +168,35 @@ export class SourceTree extends LoveTree {
         throw new Error(`Hub ${hub.name} is already connected.`);
       }
     }
-    this.d('New connection', connectionToString(connection));
     this.connections.push(connection);
-    nonRoot.forEach((h) => this.connected.add(h));
+    nonRoot.forEach((h) => {
+      h.connected = true;
+      this.connected.add(h);
+    });
   }
 
   connectAdjacentRoots() {
+    const dConnectAdjacentRoots = debug('tree:connectAdjacentRoots');
     if (this.root.hub.peers.includes(this.lover.root.hub)) {
-      this.connect([this.root.hub, this.lover.root.hub]);
+      const connection = [this.root.hub, this.lover.root.hub];
+      dConnectAdjacentRoots(connectionToString(connection));
+      this.connect(connection);
     }
   }
 
   connectCommonTrunks() {
-    this.trunks
-      .filter((t) => !this.lover.trunks.every((n) => t.eq(n)))
-      .map((common) => {
-        this.connectionOptionsCounts.delete(common);
-        this.connect([this.root.hub, common.hub, this.lover.root.hub]);
-      });
+    const dConnectCommonTrunks = debug('tree:connectCommonTrunks');
+    for (const trunk of this.trunks) {
+      for (const loverTrunk of this.lover.trunks) {
+        if (trunk.eq(loverTrunk)) {
+          const connection = [this.root.hub, trunk.hub, this.lover.root.hub];
+          dConnectCommonTrunks(connectionToString(connection));
+          this.connectionOptionsCounts.delete(trunk);
+          this.connect(connection);
+          break;
+        }
+      }
+    }
   }
 
   /**

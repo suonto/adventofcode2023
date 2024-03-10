@@ -6,6 +6,7 @@ export class Hub {
   name: string;
   group?: 'A' | 'B';
   peers: Hub[] = [];
+  connected = false;
 
   constructor(name: string) {
     this.name = name;
