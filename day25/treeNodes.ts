@@ -1,6 +1,22 @@
 import debug from 'debug';
 import { Hub } from './hub';
 
+export const hubsToString = (hubs: Hub[]) => `[${hubs.map((h) => h.name)}]`;
+
+export const nodesToString = (nodes: TreeNode[]) =>
+  hubsToString(nodes.map((n) => n.hub));
+
+export type Connection = {
+  sourceNode: TreeNode;
+  loverNode: TreeNode;
+};
+
+export const connectionToString = (conn: Connection) =>
+  nodesToString([
+    ...conn.sourceNode.path,
+    ...[...conn.loverNode.path].reverse(),
+  ]);
+
 export abstract class TreeNode {
   // Self, the Hub of this node.
   readonly hub: Hub;
@@ -8,7 +24,6 @@ export abstract class TreeNode {
   abstract children: TreeNode[];
 
   constructor(hub: Hub) {
-    hub.connected = false;
     this.hub = hub;
   }
 

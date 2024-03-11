@@ -1,10 +1,12 @@
 import debug from 'debug';
 import { Hub } from './hub';
-import { RootNode, TrunkNode } from './treeNodes';
+import {
+  Connection,
+  RootNode,
+  TrunkNode,
+  connectionToString,
+} from './treeNodes';
 
-export type Connection = Hub[];
-export const connectionToString = (conn: Connection) =>
-  `[${conn.map((h) => h.name)}]`;
 /**
  * A LoveTree is a magical tree that grows in pairs.
  * It's the garden elfs favourite tree species.
@@ -39,10 +41,18 @@ export class LoveTree {
   // For TrunkNodes, keep count of how many distinct lover TrunkNodes they can connect to
   readonly connectionOptionsCounts = new Map<TrunkNode, number>();
 
+  /**
+   * The connections between the pair nodes.
+   * conns is the same array for both trees.
+   * If one modifies it, both see it.
+   */
+  protected readonly conns: Connection[];
+
   // protected, as LoveTrees cannot grow alone
-  protected constructor(root: Hub) {
-    this.root = new RootNode(root);
-    this.body.add(root);
+  protected constructor(params: { root: Hub; conns: Connection[] }) {
+    this.root = new RootNode(params.root);
+    this.body.add(params.root);
+    this.conns = params.conns;
   }
 
   // protected, as LoveTrees can only bind with a tree of LoveTree sub species
@@ -51,12 +61,21 @@ export class LoveTree {
     lover._lover = this;
   }
 
+  connected(trunk: TrunkNode) {
+    for (const { sourceNode, loverNode } of this.conns) {
+      if (sourceNode.path.at(1)?.eq(trunk) || loverNode.path.at(1)?.eq(trunk)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   get lover(): LoveTree {
     return this._lover;
   }
 
   get trunks(): TrunkNode[] {
-    return this.root.children.filter((t) => !t.hub.connected);
+    return this.root.children.filter((t) => !this.connected(t));
   }
 
   /**
@@ -135,17 +154,18 @@ export class LoveTree {
 }
 
 export class SourceTree extends LoveTree {
-  // Only the SourceTree in each pair keeps track of connections
-  readonly connections: Connection[] = [];
-  readonly connected = new Set<Hub>();
-
-  private constructor(root: Hub) {
-    super(root);
+  private constructor(params: { root: Hub; conns: Connection[] }) {
+    super(params);
   }
 
   static createPair(params: { source: Hub; lover: Hub }) {
-    const source = new SourceTree(params.source);
-    const lover = new LoveTree(params.lover);
+    // Both trees in the pair store the same ref to their mutual connections
+    const conns: Connection[] = [];
+
+    const source = new SourceTree({ root: params.source, conns });
+    const lover = new LoveTree({ root: params.lover, conns });
+
+    // Create the pair
     source.bind(lover);
 
     source.root.grow(new Set([lover.root.hub]));
@@ -161,26 +181,27 @@ export class SourceTree extends LoveTree {
     return { source, lover };
   }
 
-  private connect(connection: Connection): void {
-    const nonRoot = connection.slice(1, -1);
-    for (const hub of nonRoot) {
-      if (this.connected.has(hub)) {
-        throw new Error(`Hub ${hub.name} is already connected.`);
+  private connect(conn: Connection): void {
+    for (const node of [conn.sourceNode, conn.loverNode]) {
+      const trunk = node.path.at(1);
+      if (trunk instanceof TrunkNode && this.connected(trunk)) {
+        throw new Error(
+          `Cannot connect ${connectionToString(conn)}. Trunk ${
+            node.hub.name
+          } is already connected.`,
+        );
       }
     }
-    this.connections.push(connection);
-    nonRoot.forEach((h) => {
-      h.connected = true;
-      this.connected.add(h);
-    });
+
+    this.conns.push(conn);
   }
 
   connectAdjacentRoots() {
     const dConnectAdjacentRoots = debug('tree:connectAdjacentRoots');
     if (this.root.hub.peers.includes(this.lover.root.hub)) {
-      const connection = [this.root.hub, this.lover.root.hub];
-      dConnectAdjacentRoots(connectionToString(connection));
-      this.connect(connection);
+      const conn = { sourceNode: this.root, loverNode: this.lover.root };
+      dConnectAdjacentRoots(connectionToString(conn));
+      this.connect(conn);
     }
   }
 
@@ -189,10 +210,10 @@ export class SourceTree extends LoveTree {
     for (const trunk of this.trunks) {
       for (const loverTrunk of this.lover.trunks) {
         if (trunk.eq(loverTrunk)) {
-          const connection = [this.root.hub, trunk.hub, this.lover.root.hub];
-          dConnectCommonTrunks(connectionToString(connection));
+          const conn = { sourceNode: trunk, loverNode: this.lover.root };
+          dConnectCommonTrunks(connectionToString(conn));
           this.connectionOptionsCounts.delete(trunk);
-          this.connect(connection);
+          this.connect(conn);
           break;
         }
       }
