@@ -3,10 +3,15 @@ import { Hub } from './hub';
 import {
   Connection,
   RootNode,
+  TreeNode,
   TrunkNode,
   connectionToString,
 } from './treeNodes';
 
+type TreePair = {
+  source: SourceTree;
+  lover: LoveTree;
+};
 /**
  * A LoveTree is a magical tree that grows in pairs.
  * It's the garden elfs favourite tree species.
@@ -35,11 +40,10 @@ export class LoveTree {
   protected _lover: LoveTree;
   readonly root: RootNode;
 
-  // All nodes in the tree
-  readonly body = new Set<Hub>();
+  // All nodes in the tree. Map key hub is the hub of the node.
+  readonly body = new Map<Hub, TreeNode>();
 
   // For TrunkNodes, keep count of how many distinct lover TrunkNodes they can connect to
-  readonly connectionOptionsCounts = new Map<TrunkNode, number>();
 
   /**
    * The connections between the pair nodes.
@@ -51,7 +55,7 @@ export class LoveTree {
   // protected, as LoveTrees cannot grow alone
   protected constructor(params: { root: Hub; conns: Connection[] }) {
     this.root = new RootNode(params.root);
-    this.body.add(params.root);
+    this.body.set(params.root, this.root);
     this.conns = params.conns;
   }
 
@@ -79,77 +83,44 @@ export class LoveTree {
   }
 
   /**
-   * @returns all reachable hubs that are not yet in this tree
+   * Grow all branches up to current max root dist + 1.
+   * For clarity, trunk branch root dist is 1.
+   *
+   * Growing is complicated. After connections are made, branches are
+   * stripped, which leaves more options for other branches.
+   *
+   * Grow all nodes at a certain distance, then increase distance.
    */
-  reach(): Set<Hub> {
-    const reach = new Set<Hub>();
-    for (const hub of this.root
-      .leafs()
-      .map((n) => n.hub.peers)
-      .flat()) {
-      if (!this.body.has(hub)) {
-        reach.add(hub);
-      }
-    }
+  grow(): boolean {
+    const dGrow = debug('tree:grow');
 
-    return reach;
-  }
-
-  /**
-   * Grow carefully without blocking branches from other trunks in this tree
-   * or any branches in the lover tree.
-   * Keep track of connectionOptionsCount for each TrunkNode.
-   * Each growth increases AND reduces prospects.
-   * Lover contacts immediately increase trunk scores.
-   */
-  adolescentGrow(): boolean {
-    const dGrow = debug('tree:grow:adolescent');
-    const reach = this.reach();
-    const loverReach = this.lover.reach();
-    const forbidden = new Set([
-      ...this.body,
-      ...this.lover.body,
-      ...reach,
-      ...loverReach,
-    ]);
-
-    // TODO while growing, return connection options to these
-    const loverBodyAndReach = new Set([...this.lover.body, ...loverReach]);
-
-    dGrow(
-      'forbidden',
-      [...forbidden].map((h) => h.name),
-    );
     let result = false;
-    for (const trunk of this.trunks) {
-      for (const leaf of trunk.leafs()) {
-        dGrow('leaf', leaf.printPath());
-        leaf.grow(forbidden);
-        for (const child of leaf.children) {
-          dGrow(child.printPath(0, -1), 'grew', child.hub.name);
-          result = true;
-          this.body.add(child.hub);
-          forbidden.add(child.hub);
+    const closestFirst = [...this.body.values()].sort(
+      (a, b) => a.dist - b.dist,
+    );
+
+    const forbidden = new Set(this.body.keys());
+    const maxDist = closestFirst.at(-1)!.dist;
+    for (let i = 0; i <= maxDist; i++) {
+      /**
+       * Process all nodes that have dist i.
+       * i=0 RootNodes
+       * i=1 TrunkNodes
+       * i=n BranchNodes
+       */
+      for (
+        let node = closestFirst.shift();
+        node?.dist === i;
+        node = closestFirst.shift()
+      ) {
+        const newNodes = node.grow(forbidden);
+        for (const child of node.children) {
+          // TODO
         }
       }
     }
-    return result;
-  }
 
-  /**
-   * More greedy than adolescent growth.
-   * Grow TrunkNode with the lowest connectionOptionsCount until space
-   * is exhausted. Ensure all options are resolved and connect to the
-   * option with the lowest trunk connectionOptionsCount.
-   */
-  adultGrow(): boolean {
-    const dGrow = debug('tree:grow:adolescent');
-    const forbidden = new Set<Hub>([
-      ...this.body,
-      ...this.lover.body,
-      // ...this.lover.reach(),
-    ]);
-    return true;
+    return result;
   }
 }
 
@@ -158,12 +129,17 @@ export class SourceTree extends LoveTree {
     super(params);
   }
 
-  static createPair(params: { source: Hub; lover: Hub }) {
+  static createPair(params: { source: Hub; lover: Hub }): TreePair {
     // Both trees in the pair store the same ref to their mutual connections
     const conns: Connection[] = [];
 
     const source = new SourceTree({ root: params.source, conns });
     const lover = new LoveTree({ root: params.lover, conns });
+
+    const pair: TreePair = {
+      source,
+      lover,
+    };
 
     // Create the pair
     source.bind(lover);
@@ -173,12 +149,11 @@ export class SourceTree extends LoveTree {
 
     for (const tree of [source, lover]) {
       for (const trunk of tree.root.children) {
-        tree.body.add(trunk.hub);
-        tree.connectionOptionsCounts.set(trunk, 0);
+        tree.body.set(trunk.hub, trunk);
       }
     }
 
-    return { source, lover };
+    return pair;
   }
 
   private connect(conn: Connection): void {
@@ -212,172 +187,10 @@ export class SourceTree extends LoveTree {
         if (trunk.eq(loverTrunk)) {
           const conn = { sourceNode: trunk, loverNode: this.lover.root };
           dConnectCommonTrunks(connectionToString(conn));
-          this.connectionOptionsCounts.delete(trunk);
           this.connect(conn);
           break;
         }
       }
     }
   }
-
-  /**
-   * For each branch in either tree,
-   * all the lover branches that are just a touch away.
-   *
-   */
-  // directContacts(): Map<Branch, Set<Branch>> {
-  //   const dDirectContacts = debug('tree:directContacts');
-
-  //   const result = new Map<Branch, Set<Branch>>();
-  //   if (this.root.peers.includes(this.lover.root)) {
-  //     dDirectContacts('Rejoice, for the roots are neighbours!');
-  //     this.connect([this.root, this.lover.root]);
-  //   }
-  //   for (const branch of this.branches) {
-  //     for (const peer of tip(branch).peers) {
-  //       for (const loverBranch of this.lover.branches) {
-  //         if (loverBranch.includes(peer)) {
-  //           dDirectContacts(
-  //             'branch',
-  //             branch.map((h) => h.name),
-  //             'can touch',
-  //             peer.name,
-  //             'in',
-  //             loverBranch.map((h) => h.name),
-  //           );
-  //           for (const [current, counterpart] of [
-  //             [branch, loverBranch],
-  //             [loverBranch, branch],
-  //           ]) {
-  //             const val = result.get(current);
-  //             if (val) {
-  //               val.add(counterpart);
-  //             } else {
-  //               result.set(current, new Set([counterpart]));
-  //             }
-  //           }
-  //         }
-  //       }
-  //     }
-  //   }
-
-  //   dDirectContacts(
-  //     'result',
-  //     [...result.entries()].map(([branch, contacts]) => ({
-  //       branch: printPath(branch),
-  //       contacts: [...contacts].map((b) => printPath(b)),
-  //     })),
-  //   );
-  //   return result;
-  // }
-
-  /**
-   * Every point that is reachable by both trees
-   * and the branches that could reach it.
-   * TODO: fix, collecting roots and is wrong
-   */
-  // meetingPoints(): Map<Hub, ReachDetails> {
-  //   const dMeetingPoints = debug('tree:meetingPoints');
-  //   const points = new Map<Hub, ReachDetails>();
-  //   for (const peer of this.root.peers) {
-  //     const match = this.lover.root.peers.find((h) => h === peer);
-  //     if (match) {
-  //       dMeetingPoints(
-  //         `Rejoice, as the roots have a common peer! ${peer.name}`,
-  //       );
-  //       this.connect([this.root, peer, this.lover.root]);
-  //     }
-  //   }
-  //   const eligibleLoverBranches = this.lover.branches.filter((b) =>
-  //     b.every((h) => !this.connected.has(h)),
-  //   );
-  //   for (const branch of this.branches.filter((b) =>
-  //     b.every((h) => !this.connected.has(h)),
-  //   )) {
-  //     for (const loverBranch of eligibleLoverBranches) {
-  //       for (const peer of tip(branch).peers) {
-  //         if (
-  //           !this.connected.has(peer) &&
-  //           tip(loverBranch).peers.includes(peer)
-  //         ) {
-  //           dMeetingPoints(printPath(branch), printPath(loverBranch));
-  //           const point = points.get(peer);
-  //           if (!point) {
-  //             const val = {
-  //               source: new Set([branch]),
-  //               lover: new Set([loverBranch]),
-  //             };
-  //             points.set(peer, val);
-  //           } else {
-  //             point.source.add(branch);
-  //             point.lover.add(loverBranch);
-  //           }
-  //         }
-  //       }
-  //     }
-  //   }
-  //   for (const [hub, details] of points.entries()) {
-  //     dMeetingPoints(hub.name, {
-  //       source: [...details.source.keys()].map((b) => b.map((h) => h.name)),
-  //       lover: [...details.lover.keys()].map((b) => b.map((h) => h.name)),
-  //     });
-  //   }
-  //   return points;
-  // }
-
-  // options(params: {
-  //   contacts: ReturnType<LoveTree['directContacts']>;
-  //   meetingPoints: ReturnType<LoveTree['meetingPoints']>;
-  // }): Map<Branch, Set<Branch>> {
-  //   const dOptions = debug('tree:options');
-  //   const { contacts, meetingPoints } = params;
-  //   const filteredContacts = [...contacts.entries()].filter((e) =>
-  //     [e[0], ...e[1]].every((b) => b.every((h) => !this.connected.has(h))),
-  //   );
-
-  //   const options = new Map<Branch, Set<Branch>>();
-
-  //   for (const [branch, loverBranches] of filteredContacts) {
-  //     for (const loverBranch of loverBranches) {
-  //       const branchOptions = options.get(branch);
-  //       if (!branchOptions) {
-  //         options.set(branch, new Set<Branch>([loverBranch]));
-  //       } else {
-  //         branchOptions.add(loverBranch);
-  //       }
-  //     }
-  //   }
-
-  //   dOptions(
-  //     [...options.entries()]
-  //       .sort((a, b) => a[1].size - b[1].size)
-  //       .map(([b, s]) => `${printPath(b)}: ${[...s].map((b) => printPath(b))}`),
-  //   );
-
-  //   for (const [point, { source, lover }] of meetingPoints.entries()) {
-  //     for (const branch of source.keys()) {
-  //       options.set(
-  //         branch,
-  //         new Set([...(options.get(branch) ?? new Set<Branch>()), ...lover]),
-  //       );
-  //     }
-  //     for (const branch of lover.keys()) {
-  //       options.set(
-  //         branch,
-  //         new Set([...(options.get(branch) ?? new Set<Branch>()), ...source]),
-  //       );
-  //     }
-  //   }
-
-  //   dOptions(
-  //     [...options.entries()]
-  //       .sort((a, b) => printPath(a[0]).localeCompare(printPath(b[0])))
-  //       .map(
-  //         ([b, s]) =>
-  //           `${b.map((h) => h.name)}: ${[...s].map((b) => printPath(b))}`,
-  //       ),
-  //   );
-
-  //   return options;
-  // }
 }

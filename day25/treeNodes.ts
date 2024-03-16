@@ -18,6 +18,8 @@ export const connectionToString = (conn: Connection) =>
   ]);
 
 export abstract class TreeNode {
+  protected abstract d: (...args: any) => void;
+
   // Self, the Hub of this node.
   readonly hub: Hub;
 
@@ -27,17 +29,35 @@ export abstract class TreeNode {
     this.hub = hub;
   }
 
-  /**
-   * @param forbidden set of nodes that are forbidden.
-   *
-   * Examples:
-   * For adolescent trees, nodes within self or lover reach are forbidden.
-   * For adult trees, nodes within self reach are only allowed if this trunk has
-   * the least options out of the trunks that can reach it.
-   */
-  abstract grow(forbidden: Set<Hub>, loverReach?: Set<Hub>): void;
+  protected abstract child(hub: Hub): TreeNode;
 
-  abstract get path(): TreeNode[];
+  /**
+   * @param forbidden set of nodes that are already in this tree.
+   * @returns new child nodes.
+   */
+  grow(forbidden: Set<Hub>): TreeNode[] {
+    const children: TreeNode[] = [];
+    for (const hub of this.hub.peers.filter((h) => !forbidden.has(h))) {
+      children.push(this.child(hub));
+    }
+    if (children.length) {
+      this.children.push(...children);
+      this.d(
+        this.hub.name,
+        'grew new children',
+        children.map((c) => c.hub.name),
+      );
+    }
+
+    return children;
+  }
+
+  abstract get path(): [RootNode, ...TreeNode[]];
+
+  // Distance from root. For trunks dist is 1.
+  get dist(): number {
+    return this.path.length - 1;
+  }
 
   printPath(...args: Parameters<typeof Array.prototype.slice>): string {
     return `[${this.path
@@ -64,20 +84,12 @@ export abstract class TreeNode {
 }
 
 export class RootNode extends TreeNode {
-  private d = debug('nodes:root');
+  protected d = debug('nodes:root');
   children: TrunkNode[] = [];
 
-  // for RootNode, the only forbidden child is lover root
-  grow(forbidden: Set<Hub>) {
-    for (const hub of this.hub.peers.filter((h) => !forbidden.has(h))) {
-      this.children.push(new TrunkNode({ root: this, hub }));
-    }
-    this.d(
-      this.hub.name,
-      'grew trunks',
-      this.children.map((c) => c.hub.name),
-    );
-  }
+  protected child = (hub: Hub): TrunkNode => new TrunkNode({ root: this, hub });
+
+  grow: (forbidden: Set<Hub>) => TrunkNode[];
 
   get path(): [RootNode] {
     return [this];
@@ -87,22 +99,12 @@ export class RootNode extends TreeNode {
 abstract class NonRoot extends TreeNode {
   children: BranchNode[] = [];
 
-  // the hubs that can be reached and do not exist in the tree yet
-  reach(forbidden: Set<Hub>): Hub[] {
-    const result: Hub[] = [];
-
-    for (const hub of this.hub.peers) {
-      if (!forbidden.has(hub)) {
-        result.push(hub);
-      }
-    }
-
-    return result;
-  }
+  grow: (forbidden: Set<Hub>) => BranchNode[];
 }
 
 export class TrunkNode extends NonRoot {
-  private d = debug('nodes:trunk');
+  protected d = debug('nodes:trunk');
+
   // Root is the very origin of the tree
   readonly root: RootNode;
 
@@ -111,18 +113,10 @@ export class TrunkNode extends NonRoot {
     this.root = params.root;
   }
 
-  leafs: () => (TrunkNode | BranchNode)[];
+  protected child = (hub: Hub): BranchNode =>
+    new BranchNode({ trunk: this, parent: this, hub });
 
-  grow(forbidden: Set<Hub>): void {
-    for (const hub of this.reach(forbidden)) {
-      this.children.push(new BranchNode({ trunk: this, parent: this, hub }));
-    }
-    this.d(
-      this.hub.name,
-      'grew children',
-      this.children.map((c) => c.hub.name),
-    );
-  }
+  leafs: () => (TrunkNode | BranchNode)[];
 
   get path(): [RootNode, TrunkNode] {
     return [this.root, this];
@@ -130,6 +124,8 @@ export class TrunkNode extends NonRoot {
 }
 
 export class BranchNode extends NonRoot {
+  protected d = debug('nodes:branch');
+
   // Trunk is directly peered to root
   readonly trunk: TrunkNode;
 
@@ -146,26 +142,15 @@ export class BranchNode extends NonRoot {
     super(params.hub);
     this.trunk = params.trunk;
     this.parent = params.parent;
+    this._path = [...this.parent.path, this];
   }
 
-  grow(treeNodeSet: Set<Hub>): void {
-    for (const hub of this.reach(treeNodeSet)) {
-      this.children.push(
-        new BranchNode({ trunk: this.trunk, parent: this, hub }),
-      );
-    }
-  }
+  protected child = (hub: Hub): BranchNode =>
+    new BranchNode({ trunk: this.trunk, parent: this, hub });
 
   leafs: () => BranchNode[];
 
   get path() {
-    if (this._path) return this._path;
-
-    if (this.parent instanceof BranchNode) {
-      this._path = [...this.parent.path, this];
-    } else {
-      this._path = [this.trunk.root, this.trunk, this];
-    }
     return this._path;
   }
 }
