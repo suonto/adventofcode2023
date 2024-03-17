@@ -44,12 +44,16 @@ const parseNetwork = async (): Promise<Network> => {
 
 const main = async () => {
   const dMain = debug('main');
+  const dPrintTree = debug('printTree');
+
   const network = await parseNetwork();
 
+  // const groupARoot = network.getHub({ name: 'ckf' });
   const groupARoot = network.getHub({ name: 'jqt' });
   const groupA: Hub[] = [groupARoot];
   const groupB: Hub[] = [];
 
+  let count = 0;
   for (const other of network.hubs.filter((h) => h.name !== groupARoot.name)) {
     dMain('Compute', groupARoot.name, '->', other.name);
     const { source, lover } = SourceTree.createPair({
@@ -61,44 +65,44 @@ const main = async () => {
     for (const conn of source.conns) {
       dMain('Root conn', connectionToString(conn));
     }
-    dMain(source.root.printTree());
-    dMain(lover.root.printTree());
+    dPrintTree(source.root.printTree());
+    dPrintTree(lover.root.printTree());
 
     source.growTrunks();
     for (const conn of source.conns) {
-      dMain('conn', connectionToString(conn));
+      dPrintTree('conn', connectionToString(conn));
     }
-    dMain(source.root.printTree());
-    dMain(lover.root.printTree());
+    dPrintTree(source.root.printTree());
+    dPrintTree(lover.root.printTree());
 
     let sourceGrowing = true;
     let loverGrowing = true;
     while (sourceGrowing || loverGrowing) {
       let sourceResult = source.growBranches();
-      dMain(source.root.printTree());
+      dPrintTree(source.root.printTree());
       if (sourceResult.newConn) {
-        dMain(lover.root.printTree());
+        dPrintTree(lover.root.printTree());
       }
       sourceGrowing = sourceResult.growing;
       while (sourceResult.newConn) {
         sourceResult = source.growBranches(sourceResult.limit);
-        dMain(source.root.printTree());
+        dPrintTree(source.root.printTree());
         if (sourceResult.newConn) {
-          dMain(lover.root.printTree());
+          dPrintTree(lover.root.printTree());
         }
       }
 
       let loverResult = lover.growBranches();
-      dMain(lover.root.printTree());
+      dPrintTree(lover.root.printTree());
       if (loverResult.newConn) {
-        dMain(source.root.printTree());
+        dPrintTree(source.root.printTree());
       }
       loverGrowing = loverResult.growing;
       while (loverResult.newConn) {
         loverResult = lover.growBranches(loverResult.limit);
-        dMain(lover.root.printTree());
+        dPrintTree(lover.root.printTree());
         if (loverResult.newConn) {
-          dMain(source.root.printTree());
+          dPrintTree(source.root.printTree());
         }
       }
     }
@@ -115,23 +119,25 @@ const main = async () => {
       source.conns.length,
       'conns,',
       group,
+      count++,
+      '/',
+      network.hubs.length,
     );
     if (group === 'A') {
       groupA.push(other);
     } else {
       groupB.push(other);
     }
-
-    dMain(
-      'Group A:',
-      groupA.map((h) => h.name),
-    );
-    dMain(
-      'Group B:',
-      groupB.map((h) => h.name),
-    );
-    dMain('Result:', groupA.length * groupB.length);
   }
+  dMain(
+    'Group A:',
+    groupA.map((h) => h.name),
+  );
+  dMain(
+    'Group B:',
+    groupB.map((h) => h.name),
+  );
+  dMain('Result:', groupA.length * groupB.length);
 };
 // 518384 too low
 if (require.main === module) {
