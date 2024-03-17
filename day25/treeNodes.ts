@@ -54,6 +54,12 @@ export abstract class TreeNode {
    */
   grow(forbidden: Set<Hub>): TreeNode[] {
     const children: TreeNode[] = [];
+    if (this.hub.name === 'bvb') {
+      this.d(
+        'bvb',
+        [...forbidden].map((h) => h.name),
+      );
+    }
     for (const hub of this.hub.peers.filter((h) => !forbidden.has(h))) {
       children.push(this.child(hub));
     }

@@ -61,15 +61,31 @@ const main = async () => {
     let loverGrowing = true;
     while (sourceGrowing || loverGrowing) {
       let sourceResult = source.grow();
+      dMain(source.root.printTree());
+      if (sourceResult.newConn) {
+        dMain(lover.root.printTree());
+      }
       sourceGrowing = sourceResult.growing;
       while (sourceResult.newConn) {
         sourceResult = source.grow(sourceResult.limit);
+        dMain(source.root.printTree());
+        if (sourceResult.newConn) {
+          dMain(lover.root.printTree());
+        }
       }
 
       let loverResult = lover.grow();
+      dMain(lover.root.printTree());
+      if (loverResult.newConn) {
+        dMain(source.root.printTree());
+      }
       loverGrowing = loverResult.growing;
       while (loverResult.newConn) {
         loverResult = lover.grow(loverResult.limit);
+        dMain(lover.root.printTree());
+        if (loverResult.newConn) {
+          dMain(source.root.printTree());
+        }
       }
     }
 
@@ -91,6 +107,9 @@ const main = async () => {
     } else {
       groupB.push(other);
     }
+
+    dMain(groupA.map((h) => h.name));
+    dMain(groupB.map((h) => h.name));
   }
 };
 // 518384 too low

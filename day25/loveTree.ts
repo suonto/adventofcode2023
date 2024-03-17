@@ -163,6 +163,7 @@ export class LoveTree {
         node?.dist === i;
         node = closestFirst.shift()
       ) {
+        dGrow('Node', node.printPath());
         const forbidden = new Set([
           ...this.body.keys(),
           ...this.conns.flatMap((conn) => connectionHubs(conn)),
