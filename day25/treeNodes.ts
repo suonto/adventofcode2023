@@ -11,6 +11,11 @@ export type Connection = {
   loverNode: TreeNode;
 };
 
+export const connectionHubs = (conn: Connection): Hub[] =>
+  [...conn.sourceNode.path, ...[...conn.loverNode.path].reverse()].map(
+    (n) => n.hub,
+  );
+
 export const connectionToString = (conn: Connection) =>
   nodesToString([
     ...conn.sourceNode.path,
@@ -23,7 +28,7 @@ export abstract class TreeNode {
   // Self, the Hub of this node.
   readonly hub: Hub;
 
-  abstract children: TreeNode[];
+  abstract children: Set<TreeNode>;
 
   constructor(hub: Hub) {
     this.hub = hub;
@@ -41,12 +46,16 @@ export abstract class TreeNode {
       children.push(this.child(hub));
     }
     if (children.length) {
-      this.children.push(...children);
       this.d(
-        this.hub.name,
-        'grew new children',
+        this.printPath(),
+        'forbidden',
+        [...forbidden].map((h) => h.name),
+        'current children',
+        [...this.children].map((c) => c.hub.name),
+        'new children',
         children.map((c) => c.hub.name),
       );
+      children.forEach((child) => this.children.add(child));
     }
 
     return children;
@@ -71,7 +80,7 @@ export abstract class TreeNode {
   eq = (other: TreeNode) => this.hub === other.hub;
 
   leafs = (): TreeNode[] => {
-    if (!this.children.length) {
+    if (!this.children.size) {
       return [this];
     } else {
       const result: TreeNode[] = [];
@@ -85,7 +94,7 @@ export abstract class TreeNode {
 
 export class RootNode extends TreeNode {
   protected d = debug('nodes:root');
-  children: TrunkNode[] = [];
+  children = new Set<TrunkNode>();
 
   protected child = (hub: Hub): TrunkNode => new TrunkNode({ root: this, hub });
 
@@ -97,7 +106,7 @@ export class RootNode extends TreeNode {
 }
 
 abstract class NonRoot extends TreeNode {
-  children: BranchNode[] = [];
+  children = new Set<BranchNode>();
 
   grow: (forbidden: Set<Hub>) => BranchNode[];
 }

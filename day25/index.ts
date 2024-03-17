@@ -4,6 +4,7 @@ import path from 'node:path';
 import { Hub } from './hub';
 import { SourceTree } from './loveTree';
 import { Network } from './network';
+import { connectionToString } from './treeNodes';
 
 function parseLine(line: string) {
   return line.split(':').map((s) => s.trim());
@@ -46,18 +47,51 @@ const main = async () => {
   const network = await parseNetwork();
 
   const groupARoot = network.getHub({ name: 'jqt' });
-  const other = network.getHub({ name: 'rhn' });
+  const groupA: Hub[] = [groupARoot];
+  const groupB: Hub[] = [];
 
-  const { source, lover } = SourceTree.createPair({
-    source: groupARoot,
-    lover: other,
-  });
-  source.connectAdjacentRoots();
-  source.connectCommonTrunks();
-  dMain('source.adolescentGrow', source.adolescentGrow());
-  dMain('lover.adolescentGrow', lover.adolescentGrow());
-  dMain('source.adolescentGrow', source.adolescentGrow());
-  dMain('source.adolescentGrow', source.adolescentGrow());
+  for (const other of network.hubs.filter((h) => h.name !== groupARoot.name)) {
+    dMain('Compute', groupARoot.name, '->', other.name);
+    const { source, lover } = SourceTree.createPair({
+      source: groupARoot,
+      lover: other,
+    });
+
+    let sourceGrowing = true;
+    let loverGrowing = true;
+    while (sourceGrowing || loverGrowing) {
+      let sourceResult = source.grow();
+      sourceGrowing = sourceResult.growing;
+      while (sourceResult.newConn) {
+        sourceResult = source.grow(sourceResult.limit);
+      }
+
+      let loverResult = lover.grow();
+      loverGrowing = loverResult.growing;
+      while (loverResult.newConn) {
+        loverResult = lover.grow(loverResult.limit);
+      }
+    }
+
+    for (const conn of source.conns) {
+      dMain(connectionToString(conn));
+    }
+
+    const group = source.conns.length > 3 ? 'A' : 'B';
+    dMain(
+      groupARoot.name,
+      '->',
+      other.name,
+      source.conns.length,
+      'conns,',
+      group,
+    );
+    if (group === 'A') {
+      groupA.push(other);
+    } else {
+      groupB.push(other);
+    }
+  }
 };
 // 518384 too low
 if (require.main === module) {
