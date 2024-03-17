@@ -57,31 +57,45 @@ const main = async () => {
       lover: other,
     });
 
+    source.growRoots();
+    for (const conn of source.conns) {
+      dMain('Root conn', connectionToString(conn));
+    }
+    dMain(source.root.printTree());
+    dMain(lover.root.printTree());
+
+    source.growTrunks();
+    for (const conn of source.conns) {
+      dMain('conn', connectionToString(conn));
+    }
+    dMain(source.root.printTree());
+    dMain(lover.root.printTree());
+
     let sourceGrowing = true;
     let loverGrowing = true;
     while (sourceGrowing || loverGrowing) {
-      let sourceResult = source.grow();
+      let sourceResult = source.growBranches();
       dMain(source.root.printTree());
       if (sourceResult.newConn) {
         dMain(lover.root.printTree());
       }
       sourceGrowing = sourceResult.growing;
       while (sourceResult.newConn) {
-        sourceResult = source.grow(sourceResult.limit);
+        sourceResult = source.growBranches(sourceResult.limit);
         dMain(source.root.printTree());
         if (sourceResult.newConn) {
           dMain(lover.root.printTree());
         }
       }
 
-      let loverResult = lover.grow();
+      let loverResult = lover.growBranches();
       dMain(lover.root.printTree());
       if (loverResult.newConn) {
         dMain(source.root.printTree());
       }
       loverGrowing = loverResult.growing;
       while (loverResult.newConn) {
-        loverResult = lover.grow(loverResult.limit);
+        loverResult = lover.growBranches(loverResult.limit);
         dMain(lover.root.printTree());
         if (loverResult.newConn) {
           dMain(source.root.printTree());
@@ -108,8 +122,15 @@ const main = async () => {
       groupB.push(other);
     }
 
-    dMain(groupA.map((h) => h.name));
-    dMain(groupB.map((h) => h.name));
+    dMain(
+      'Group A:',
+      groupA.map((h) => h.name),
+    );
+    dMain(
+      'Group B:',
+      groupB.map((h) => h.name),
+    );
+    dMain('Result:', groupA.length * groupB.length);
   }
 };
 // 518384 too low
