@@ -36,6 +36,18 @@ export abstract class TreeNode {
 
   protected abstract child(hub: Hub): TreeNode;
 
+  printTree(): string {
+    const padding = Array(this.path.length - 1)
+      .fill('  ')
+      .join('');
+    let str = padding + '\u029F ' + this.hub.name + '\n';
+    for (const child of this.children) {
+      str += child.printTree();
+    }
+
+    return str;
+  }
+
   /**
    * @param forbidden set of nodes that are already in this tree.
    * @returns new child nodes.

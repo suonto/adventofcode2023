@@ -68,8 +68,15 @@ export class LoveTree {
   }
 
   connected(trunk: TrunkNode) {
+    const dConnected = debug('tree:connected');
     for (const { sourceNode, loverNode } of this.conns) {
       if (sourceNode.path.at(1)?.eq(trunk) || loverNode.path.at(1)?.eq(trunk)) {
+        dConnected(
+          'Trunk',
+          trunk.hub.name,
+          'is part of',
+          connectionToString({ sourceNode, loverNode }),
+        );
         return true;
       }
     }
@@ -82,6 +89,29 @@ export class LoveTree {
 
   get trunks(): TrunkNode[] {
     return [...this.root.children].filter((t) => !this.connected(t));
+  }
+
+  strip(trunk: TrunkNode): void {
+    const dStrip = debug('tree:strip');
+
+    dStrip(`Tree before strip\n${trunk.root.printTree()}`);
+    let nodes: (TrunkNode | BranchNode)[] = [trunk];
+    for (let node = nodes.shift(); node; node = nodes.shift()) {
+      dStrip(
+        this instanceof SourceTree ? 'SourceTree' : 'LoveTree',
+        this.root.hub.name,
+        'stripping',
+        node.printPath(),
+      );
+      this.body.delete(node.hub);
+      if (node instanceof TrunkNode) {
+        node.root.children.delete(node);
+      } else if (node instanceof BranchNode) {
+        node.parent.children.delete(node);
+      }
+      nodes.push(...node.children);
+    }
+    dStrip(`Tree after strip\n${trunk.root.printTree()}`);
   }
 
   /**
@@ -149,13 +179,19 @@ export class LoveTree {
             result.newConn = true;
             if (this instanceof SourceTree) {
               this.connect({
-                sourceNode: node,
-                loverNode: counterpart,
+                conn: {
+                  sourceNode: node,
+                  loverNode: counterpart,
+                },
+                at: child.hub,
               });
             } else {
               (this.lover as SourceTree).connect({
-                sourceNode: counterpart,
-                loverNode: node,
+                conn: {
+                  sourceNode: counterpart,
+                  loverNode: node,
+                },
+                at: child.hub,
               });
             }
             return result;
@@ -191,22 +227,10 @@ export class SourceTree extends LoveTree {
     return pair;
   }
 
-  strip(trunk: TrunkNode): void {
-    const dStrip = debug('tree:strip');
-    let nodes: (TrunkNode | BranchNode)[] = [trunk];
-    for (let node = nodes.shift(); node; node = nodes.shift()) {
-      dStrip(node.printPath());
-      this.body.delete(node.hub);
-      if (node instanceof BranchNode) {
-        node.parent.children.delete(node);
-        this.body.delete(node.hub);
-      }
-      nodes.push(...node.children);
-    }
-  }
-
-  connect(conn: Connection): void {
+  connect(params: { conn: Connection; at: Hub }): void {
     const dConnect = debug('tree:connect');
+
+    const { conn, at } = params;
     dConnect(`New conn: ${connectionToString(conn)}`);
     for (const node of [conn.sourceNode, conn.loverNode]) {
       const trunk = node.path.at(1);
@@ -218,9 +242,22 @@ export class SourceTree extends LoveTree {
             } of ${node.printPath()} is already connected.`,
           );
         }
-
-        this.strip(trunk);
+        if (node === conn.sourceNode) {
+          this.strip(trunk);
+        } else {
+          this.lover.strip(trunk);
+        }
       }
+    }
+
+    const sourceAt = this.body.get(at);
+    if (sourceAt instanceof TrunkNode || sourceAt instanceof BranchNode) {
+      this.strip(sourceAt.path[1]);
+    }
+
+    const loverAt = this.lover.body.get(at);
+    if (loverAt instanceof TrunkNode || loverAt instanceof BranchNode) {
+      this.lover.strip(loverAt.path[1]);
     }
 
     this.conns.push(conn);
